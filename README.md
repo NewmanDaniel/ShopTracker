@@ -1,7 +1,7 @@
 # ShopTracker
 ## What is it?
-ShopTracker is a script that assists in testing your online store. It scrapes your shopify store for data
-(including bold product options) and stores it in a local database. 
+ShopTracker is a script that assists in testing your online store. It scrapes your shopify store for product data
+(including bold product options) and stores it in a local mysql database. 
 
 ## dependencies
 mysql, phantomJS, beautifulsoup
@@ -13,11 +13,13 @@ It's recommended to use a virtual environment to install these dependencies:
 
 `
 virtualenv -p python3 venv
+
 pip install mysqlclient
+
 pip install beautifulsoup4
 `
 
-PhantomJS can be found here: http://phantomjs.org/ 
+PhantomJS can be found here: http://phantomjs.org/ or installed with your package manager of choice
 
 Configure database details in config.py, then override the beautifulsoup functions in config_soup.py
 

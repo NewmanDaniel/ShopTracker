@@ -11,13 +11,13 @@ Ensure phantomJS is installed on your system, and the mysql and beautifulsoup de
 
 It's recommended to use a virtual environment to install these dependencies:
 
-`
+~~~
 virtualenv -p python3 venv
 
 pip install mysqlclient
 
 pip install beautifulsoup4
-`
+~~~
 
 PhantomJS can be found here: http://phantomjs.org/ or installed with your package manager of choice
 

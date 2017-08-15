@@ -8,7 +8,9 @@ mysql, phantomJS, beautifulsoup
 
 ## setup
 Ensure phantomJS is installed on your system, and the mysql and beautifulsoup dependencies are installed via pip.
+
 PhantomJS can be found here: http://phantomjs.org/ 
+
 Configure database details in config.py, then override the beautifulsoup functions in config_soup.py
 
 ## usage 

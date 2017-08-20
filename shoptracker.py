@@ -93,7 +93,6 @@ class Product:
     def get_handle(title):
         return re.sub(r'\s', '-', title.lower())
 
-
 def import_csv_from_shopify(csv_file):
     """
     Imports shopify product CSV from shopify
@@ -103,19 +102,25 @@ def import_csv_from_shopify(csv_file):
         reader = csv.DictReader(csv_file)
 
         for row in reader:
-            p_list.append(Product(
-                row["Title"],
-                handle=row["Handle"],
-                price=float(row["Variant Price"]),
-                desc=row["Body (HTML)"],
-                vendor=row["Vendor"],
-                tags=row["Tags"],
-                img_url=row["Image Src"],
-                sku=row["Variant SKU"]
-            ))
+            isPublished = row["Published"]
+            if isPublished == 'true':
+                logging.info('Importing handle %s from %s' % (row["Handle"], csv_file.name))
+                p_list.append(Product(
+                    row["Title"],
+                    handle=row["Handle"],
+                    price=float(row["Variant Price"]),
+                    desc=row["Body (HTML)"],
+                    vendor=row["Vendor"],
+                    tags=row["Tags"],
+                    img_url=row["Image Src"],
+                    sku=row["Variant SKU"]))
+            elif isPublished == 'false':
+                logging.debug('Skipped %s, pub value %s' % (row["Handle"], row["Published"]))
+            else:
+                logging.debug('Skipped %s: malformed Published value'% (row["Handle"]))
 
         for product in p_list:
-            product.save(con.cursor()) 
+            product.save(con.cursor())
 
         con.commit()
 
@@ -138,10 +143,6 @@ def main():
     #logging.critical('critical msg')
 
     # Test Block
-    #with DB() as con:
-    #    product = Product("Pearl White Skyfall Tuxedo by Michael Craig", description="dazzle in this top of the line", price=495.00, vendor="Michael Craig" )
-    #    product.save(con.cursor())
-    #    con.commit() 
     import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
     # End test block
 

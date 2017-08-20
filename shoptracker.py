@@ -73,6 +73,7 @@ class Product:
         self.g_age_group = kwargs.get('g_age_group','')
         self.g_color= kwargs.get('g_color','')
         self.g_product_category = kwargs.get('g_product_category','')
+        logging.debug('Product object instantiated, handle: %s' % (self.handle))
 
     def __repr__(self):
         return self.handle
@@ -82,13 +83,11 @@ class Product:
             statement = "INSERT INTO PRODUCTS (!PRODUCTS_PLACEHOLDER!) VALUES (!VALUES_PLACEHOLDER!)"
             products_placeholder = ""
             values_placeholder = ""
-            for variable in vars(self):
-                print(variable)
-            print("saving to db: %s"% (self.handle))
             cur.execute("""
             INSERT INTO products (products_handle, products_title, products_price, products_desc, products_vendor)
-            VALUES ("%s", "%s", %d, "%s", "%s")
-            """ % (self.handle, self.title, self.price, self.desc, self.vendor))
+            VALUES ("%s", "%s", "%d", "%s", "%s")
+            """ % (self.handle, self.title, self.price, self.desc.replace('\"','\\"'), self.vendor))
+            logging.debug('Product object saved to db, handle: %s' % (self.handle))
         except mysql.Error as e:
             print("Problem while saving a product to database")
             #print("Error %d: %s" % (e.args[0], e.args[1]))
@@ -110,7 +109,7 @@ def import_csv_from_shopify(csv_file):
             p_list.append(Product(
                 row["Title"],
                 handle=row["Handle"],
-                price=row["Variant Price"],
+                price=float(row["Variant Price"]),
                 desc=row["Body (HTML)"],
                 vendor=row["Vendor"],
                 tags=row["Tags"],
@@ -120,6 +119,8 @@ def import_csv_from_shopify(csv_file):
 
         for product in p_list:
             product.save(con.cursor())
+
+        con.commit()
 
 
 def print_error():
@@ -132,16 +133,22 @@ def main():
     """
     Handles command arguments
     """
+    # Instantiate logger
+    logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
+    #logging.debug('debug msg')
+    #logging.info('info msg')
+    #logging.warning('warning msg')
+    #logging.critical('critical msg')
+
     # Test Block
-    with DB() as con:
-        product = Product("Pearl White Skyfall Tuxedo by Michael Craig", description="dazzle in this top of the line", price=495.00, vendor="Michael Craig" )
-        product.save(con.cursor())
-        con.commit() 
-    #import_csv_from_shopify(open('misc/products_export.csv', 'r'))
-
-
+    #with DB() as con:
+    #    product = Product("Pearl White Skyfall Tuxedo by Michael Craig", description="dazzle in this top of the line", price=495.00, vendor="Michael Craig" )
+    #    product.save(con.cursor())
+    #    con.commit() 
+    import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
     # End test block
 
+    # Argument handling
     if len(sys.argv) == 2:
         # Read in url text file and perform operations
         pass

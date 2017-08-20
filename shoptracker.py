@@ -58,7 +58,7 @@ class Product:
     Describes a shopify product. Fields required for google shopping that don't exist on shopify will be
     marked with g_
     """
-    fields = {"handle":"products_handle", "title":"products_title", "price":"products_price", "desc":"products_desc", "vendor":"products_vendor", "sku":"products_sku", "tags":"products_tags", "url":"products_url", "img_url":"products_img_url"}
+    fields = {"id":"products_id", "handle":"products_handle", "title":"products_title", "price":"products_price", "desc":"products_desc", "vendor":"products_vendor", "sku":"products_sku", "tags":"products_tags", "url":"products_url", "img_url":"products_img_url"}
     def __init__(self, title, **kwargs):
         self.title = title
         self.handle = kwargs.get('handle',Product.get_handle(title))
@@ -72,12 +72,14 @@ class Product:
         self.url= kwargs.get('url','')
         self.img_url = kwargs.get('img_url','') 
 
+        # ID, used for collections
+        self.id = kwargs.get('id','')
 
         #self.collections = kwargs.get('collections', [])
         self.g_age_group = kwargs.get('g_age_group','')
         self.g_color= kwargs.get('g_color','')
         self.g_product_category = kwargs.get('g_product_category','')
-        logging.debug('Product object instantiated, handle: %s' % (self.handle))
+        #logging.debug('Product object instantiated, handle: %s' % (self.handle))
 
     def __repr__(self):
         return self.handle
@@ -129,6 +131,7 @@ class Collection:
 
     def __init__(self, title, *conditions):
         self.title = title
+        self.handle = Product.get_handle(title)
 
         self.conditions = []
         self.products = []
@@ -149,13 +152,15 @@ class Collection:
         # Build product List
         self.products = self.getProducts(product_handles)
 
+        logging.debug('Collection instantiated: %s' %(self.handle)) 
     def __repr__(self):
-        return self.title
+        return self.handle
 
     def getProducts(self, product_handles):
         products = []
         for product_handle in product_handles:
             products.append(Product.getProduct(product_handle))
+            logging.debug('Collection %s added product %s' %(self.handle, product_handle))
         return products
 
     def getProductHandles(self, sql_statement):
@@ -271,7 +276,7 @@ def main():
     e = Collection("Neil Allyn", ("vendor", "equals", "Neil Allyn"), ("tag", "equals", "Tuxedo"), ("title", "does not contain", "big and tall"))
     print(e)
     for product in e.products:
-        print(product)
+        print("id: " + str(product.id) + " handle: " + product.handle)
     # End test block
 
     # Argument handling

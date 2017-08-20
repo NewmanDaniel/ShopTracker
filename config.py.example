@@ -1,0 +1,12 @@
+"config.py"
+# This is an example of config.py,
+# Enter your config and rename to config.py
+
+# Database config
+db_host = 'localhost'
+db_name = 'shoptracker_demo'
+db_user = 'shoptracker_user'
+db_password = 'sh0ptr4ck3r'
+
+# Configure login file
+logging_file = 'log.txt'

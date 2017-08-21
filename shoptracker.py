@@ -89,7 +89,7 @@ class Product:
             if Product.getProduct(self.handle):
                 update_statement = """
                 UPDATE products
-                SET products_title = '%s', products_price = %f, products_desc = '%s', products_vendor = '%s', products_SKU = '%s', products_tags = '%s', products_url = '%s', products_img_url = '%s'
+                SET products_title = "%s", products_price = %f, products_desc = "%s", products_vendor = "%s", products_SKU = "%s", products_tags = "%s", products_url = "%s", products_img_url = "%s"
                 WHERE products_handle = '%s';
                 """ % (self.title, self.price, self.desc.replace('\"','\\"'), self.vendor,
                        self.sku, self.tags.replace('\"','\\"'), self.url, self.img_url, self.handle)
@@ -107,7 +107,8 @@ class Product:
         except mysql.Error as e:
             print("Problem while saving a product to database")
             #print("Error %d: %s" % (e.args[0], e.args[1]))
-            print(e)
+            #print(e)
+            print(update_statement)
 
     def getProduct(product_ident, **options): 
         kwargs = {}
@@ -194,6 +195,13 @@ class Collection:
 
     def getProducts(self):
             return self.products
+
+    def generate_urls(self, cur):
+        "Used to generate urls for products within a collection and save them in database"
+        for product in self.products:
+            url = 'https://%s/collections/%s/products/%s' % (config.domain_name, self.handle, product.handle)
+            product.url = url
+            product.save(cur)
 
     def __gatherProducts(self):
         "Used to build a products list for a collection that exists in the database"
@@ -366,6 +374,10 @@ def parse_condition_str(condition_str):
         raise ValueError('Could not parse condition_str')
 
 def collection_bulk_import(collection_dl):
+    """
+    Accepts a list of dicts containing the title of a collection and its conditions,
+    and saves it to the database. Products will be updated with urls
+    """
     with DB() as con:
         collections = []
         titles = []
@@ -379,6 +391,7 @@ def collection_bulk_import(collection_dl):
                 logging.info("Duplicate collection, skipping: %s" %(collection['title']))
 
         for collection in collections:
+            collection.generate_urls(con.cursor())
             collection.save(con.cursor())
 
         con.commit()
@@ -412,7 +425,6 @@ def import_collections_from_shopify(*html_files):
                     # append them to conditions list
                     conditions.append(li.text)
                 collection['condition_strs'] = conditions
-                # print(collection)
 
                 # check blacklist
                 has_bad_word = False

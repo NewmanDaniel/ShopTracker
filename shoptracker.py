@@ -85,12 +85,25 @@ class Product:
         return self.handle
 
     def save(self, cur):
-        try:
-            cur.execute("""
-            INSERT INTO products (products_handle, products_title, products_price, products_desc, products_vendor, products_SKU, products_tags, products_url, products_img_url)
-            VALUES ("%s", "%s", "%d", "%s", "%s", "%s", "%s", "%s", "%s")
-            """ % (self.handle, self.title, self.price, self.desc.replace('\"','\\"'), self.vendor, self.sku, self.tags.replace('\"','\\"'), self.url, self.img_url))
-            logging.debug('Product object saved to db, handle: %s' % (self.handle))
+        try: 
+            if Product.getProduct(self.handle):
+                update_statement = """
+                UPDATE products
+                SET products_title = '%s', products_price = %f, products_desc = '%s', products_vendor = '%s', products_SKU = '%s', products_tags = '%s', products_url = '%s', products_img_url = '%s'
+                WHERE products_handle = '%s';
+                """ % (self.title, self.price, self.desc.replace('\"','\\"'), self.vendor,
+                       self.sku, self.tags.replace('\"','\\"'), self.url, self.img_url, self.handle)
+                cur.execute(update_statement)
+                logging.debug('Product object updated in db, handle: %s' % (self.handle))
+            else: 
+                insert_statement = """
+                INSERT INTO products (products_handle, products_title, products_price, products_desc,
+                    products_vendor, products_SKU, products_tags, products_url, products_img_url)
+                VALUES ("%s", "%s", "%f", "%s", "%s", "%s", "%s", "%s", "%s")
+                """ % (self.handle, self.title, self.price, self.desc.replace('\"','\\"'), self.vendor,
+                       self.sku, self.tags.replace('\"','\\"'), self.url, self.img_url)
+                cur.execute(insert_statement)
+                logging.debug('Product object saved to db, handle: %s' % (self.handle)) 
         except mysql.Error as e:
             print("Problem while saving a product to database")
             #print("Error %d: %s" % (e.args[0], e.args[1]))
@@ -111,6 +124,10 @@ class Product:
                 sql_statement = "select * from products where products_handle='%s'" % (product_ident)
             cur.execute(sql_statement)
             result = cur.fetchone()
+
+            # Return NoneType if product not found
+            if not result:
+                return None
 
             # Finds all columns that exist in products table and matches them up with object definition
             t_columns = []
@@ -359,10 +376,9 @@ def collection_bulk_import(collection_dl):
                 collections.append(c)
                 titles.append(collection['title'])
             else:
-                print("asdfasdf")
+                logging.info("Duplicate collection, skipping: %s" %(collection['title']))
 
         for collection in collections:
-            print(collection.title)
             collection.save(con.cursor())
 
         con.commit()
@@ -464,7 +480,7 @@ def main():
     Handles command arguments
     """
     # Instantiate logger
-    logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
+    logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.INFO)
     #logging.debug('debug msg')
     #logging.info('info msg')
     #logging.warning('warning msg')
@@ -479,6 +495,18 @@ def main():
         con.commit()
     import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
     import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
+    with DB() as con:
+        cur = con.cursor()
+        p = Product.getProduct('gold-venetian-cummerbund-and-bow-tie-set')
+        p.price = 9999.93
+        p.save(cur)
+        con.commit()
+
+
+        p = Product.getProduct('gold-venetian-cummerbund-and-bow-tie-set')
+        p.price = 99929.93
+        p.save(cur)
+        con.commit()
     # End test block
 
     # Argument handling

@@ -17,7 +17,7 @@ def main():
             `products_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
             `products_handle` varchar(512) NOT NULL DEFAULT '',
             `products_title` varchar(512) NOT NULL DEFAULT '',
-            `products_price` decimal(20) NULL DEFAULT '0',
+            `products_price` decimal(13,2) NULL DEFAULT '0',
             `products_desc` TEXT NULL,
             `products_vendor` varchar(512) NULL DEFAULT '',
             `products_SKU` varchar(512) NULL DEFAULT '',

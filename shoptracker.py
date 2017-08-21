@@ -8,6 +8,7 @@ import io
 import re
 import MySQLdb as mysql
 import csv
+from bs4 import BeautifulSoup
 # -- #
 import config
 
@@ -294,6 +295,133 @@ class Collection:
             #print("Error %d: %s" % (e.args[0], e.args[1]))
             print(e)
 
+def import_collections_print_collection_list(collection_list):
+    for collection in collection_list:
+        print("Title: %s" % (collection['title']))
+        for condition in collection['conditions']:
+            print("    " + condition)
+
+def clean_sql(sql_str):
+    return sql_str.replace('"','').replace("'","\\'").strip()
+
+def parse_condition_str(condition_str):
+    "Helper function to translate condition strs to tuples that can be accepted by collection object" 
+    # Need to implement greater than, less than
+
+    variables = {
+        "Product tag":"tag",
+        "Product title":"title",
+        "Product vendor":"vendor",
+    }
+
+    relations = {
+        "is equal to":"equals",
+        "contains":"equals",
+        "does not contain":"does not contain",
+    } 
+
+    condition = '' 
+    variable = ''; relation = ''; value = ''
+
+    # get variable
+    for original, replacement in variables.items():
+        m = re.search('(%s)' % (original), condition_str)
+        if m:
+            variable = replacement
+            original_variable = original
+
+    # get relation
+    for original, replacement in relations.items():
+        m = re.search('(%s)' % (original), condition_str)
+        if m:
+            relation = replacement
+            original_relation = original
+
+    # get value
+    m = re.search('(%s.*%s)(.*)' %(original_variable, original_relation), condition_str)
+    if m:
+        value = clean_sql(m[2])
+
+    # check if everything is set
+    if variable and relation and value:
+        return (variable, relation, value)
+    else:
+        raise ValueError('Could not parse condition_str')
+
+def collection_bulk_import(collection_dl):
+    with DB() as con:
+        collections = []
+        titles = []
+        for collection in collection_dl:
+            if collection['title'] not in titles:
+                c = Collection(clean_sql(collection['title']))
+                c.processConditions(*collection['conditions'])
+                collections.append(c)
+                titles.append(collection['title'])
+            else:
+                print("asdfasdf")
+
+        for collection in collections:
+            print(collection.title)
+            collection.save(con.cursor())
+
+        con.commit()
+
+def import_collections_from_shopify(*html_files):
+    """
+    Imports arguments from collection html pages from the shopify admin
+    """
+    # Extract titles and conditions from html, store them in collection_list
+    collection_list = []
+    # Don't add if collection contains a blacklisted word in the title
+    blacklist = ['hidden', 'Hidden', 'HIDDEN', 'internal', 'Internal', 'INTERNAL',
+                 'Newest Products', 'Best Selling Products', 'Home page']
+    for html_file in html_files:
+        soup = BeautifulSoup(html_file, 'lxml') 
+        trs = soup.find_all('tr')
+        # navigate through TRs
+        for tr in trs:
+            if tr.has_attr('data-bind-class'):
+
+                collection = {
+                    'title':'',
+                    'condition_strs':[],
+                }
+
+                # get title
+                collection['title'] = tr.find_all('td')[2].text.strip() 
+                # get conditions
+                conditions = []
+                for li in tr.find_all('td')[3].find_all('li'):
+                    # append them to conditions list
+                    conditions.append(li.text)
+                collection['condition_strs'] = conditions
+                # print(collection)
+
+                # check blacklist
+                has_bad_word = False
+                for bad_word in blacklist: 
+                    if bad_word in collection['title']:
+                        has_bad_word = True
+
+                # append to collection list if does not contain bad word
+                if not has_bad_word:
+                    collection_list.append(collection)
+
+    # Parse through the condition strs and transform them into 3-element tuples
+    for collection in collection_list:
+        conditions = []
+        for condition_str in collection['condition_strs']:
+            conditions.append(parse_condition_str(condition_str)) 
+        collection['conditions'] = conditions
+
+    # Give dict with collection titles and tuples to collection_bulk_import function
+    collection_bulk_import(collection_list)
+
+    #import_collections_print_collection_list(collection_list)
+
+
+
 def import_csv_from_shopify(csv_file):
     """
     Imports shopify product CSV from shopify
@@ -350,22 +478,7 @@ def main():
         cur.execute('delete from products_collections') 
         con.commit()
     import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
-    c = Collection("Tapestry Satin Vests")
-    c.processConditions(("tag", "equals", "tapestry satin"), ("tag", "equals", "vest"))
-    d = Collection("Hardwick Tuxedo")
-    d.processConditions(("vendor", "equals", "hardwick"), ("tag", "equals", "tuxedo"))
-    e = Collection("Neil Allyn")
-    e.processConditions(("vendor", "equals", "Neil Allyn"), ("tag", "equals", "Tuxedo"), ("title", "does not contain", "big and tall"))
-    #print(e)
-    #for product in e.products:
-    #    print("id: " + str(product.id) + " handle: " + product.handle)
-    with DB() as con:
-        c.save(con.cursor())
-        d.save(con.cursor())
-        e.save(con.cursor())
-        con.commit()
-    f = Collection(handle="Nei")
-    print(f.products)
+    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
     # End test block
 
     # Argument handling

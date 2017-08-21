@@ -95,11 +95,19 @@ class Product:
             #print("Error %d: %s" % (e.args[0], e.args[1]))
             print(e)
 
-    def getProduct(product_handle): 
+    def getProduct(product_ident, **options): 
         kwargs = {}
         with DB(CursorClass='DictCursor') as con:
             cur = con.cursor()
-            sql_statement = "select * from products where products_handle='%s'" % (product_handle)
+            if options.get('id') == True:
+                # Select product by ID
+                sql_statement = "select * from products where products_id=%d" % (product_ident)
+            elif options.get('handle') == True:
+                # Select product by handle
+                sql_statement = "select * from products where products_handle='%s'" % (product_ident)
+            else:
+                # Default behavior, Select product by handle
+                sql_statement = "select * from products where products_handle='%s'" % (product_ident)
             cur.execute(sql_statement)
             result = cur.fetchone()
 
@@ -127,12 +135,26 @@ class Collection:
     variables = ['tag', 'title', 'vendor']
     relations = ['equals', 'does not contain', 'less than', 'greater than']
 
-    def __init__(self, title, *conditions):
-        self.title = title
-        self.handle = Product.get_handle(title)
+    def __init__(self, title=None, **kwargs):
+        self.products = [] 
+        if kwargs.get('handle'): 
+            self.handle = kwargs.get('handle')
+            self.__gatherProducts()
 
+        else:
+            self.title = title
+            self.handle = Product.get_handle(title) 
+        logging.debug('Collection instantiated: %s' %(self.handle))
+
+    def __repr__(self):
+        return self.handle 
+
+    def getCollection(collection_handle):
+        with DB() as con:
+            cursor = con.cursor() 
+
+    def processConditions(self, *conditions):
         self.conditions = []
-        self.products = []
 
         # Verify conditions
         for condition in conditions:
@@ -142,20 +164,48 @@ class Collection:
                 raise ValueError("Attempted to instantiate collection with malformed condition")
 
         # Build SQL statement
-        sql_statement = self.processConditions(self.conditions)
+        sql_statement = self.__buildStatementFromConditions(self.conditions)
 
         # Get product handle list
-        product_handles = self.getProductHandles(sql_statement)
+        product_handles = self.__getProductHandles(sql_statement)
 
         # Build product List
-        self.products = self.getProductsFromHandles(product_handles)
+        self.products = self.__getProductsFromHandles(product_handles)
 
-        logging.debug('Collection instantiated: %s' %(self.handle)) 
+        self.product_count = len(self.products)
 
-    def __repr__(self):
-        return self.handle
+    def getProducts(self):
+            return self.products
 
-    def getProductsFromHandles(self, product_handles):
+    def __gatherProducts(self):
+        "Used to build a products list for a collection that exists in the database"
+        with DB() as con:
+            cur = con.cursor()
+            get_collection_id_statement = "select collections_id from collections where collections_handle = '%s'"
+            get_products_statement = "select products_id from products_collections where collections_id = '%s'"
+            product_ids = []
+
+            # get ID of collection
+            cur.execute(get_collection_id_statement % (self.handle))
+            collections_id = cur.fetchone()[0]
+
+            # get product IDs matching collection ID
+            cur.execute(get_products_statement % (collections_id))
+            for row in cur.fetchall():
+                product_ids.append(row[0])
+
+            # feed them into getProductsFromIDs
+            self.products = self.__getProductsFromIDs(product_ids)
+
+
+    def __getProductsFromIDs(self, product_ids):
+        products = []
+        for product_id in product_ids:
+            products.append(Product.getProduct(product_id, id=True))
+        return products
+
+
+    def __getProductsFromHandles(self, product_handles):
         "Feeds product handles into Product's getProduct method"
         products = []
         for product_handle in product_handles:
@@ -163,7 +213,7 @@ class Collection:
             logging.debug('Collection %s added product %s' %(self.handle, product_handle))
         return products
 
-    def getProductHandles(self, sql_statement):
+    def __getProductHandles(self, sql_statement):
         "Used with the constructed SQL statement to return a filtered list of product handles"
         with DB() as con:
             product_handles = []
@@ -173,8 +223,8 @@ class Collection:
                 product_handles.append(product[0])
             return product_handles
 
-    def processCondition(self, condition):
-        "Returns an sql statement fragment for use in the processConditions method"
+    def __buildStatementFragment(self, condition):
+        "Returns an sql statement fragment for use in the __buildStatementFromConditions method"
         sql_statement_fragment= ''
         variable = condition[0]; relation = condition[1]; value = condition[2]
 
@@ -197,11 +247,11 @@ class Collection:
         else:
             return sql_statement_fragment
 
-    def processConditions(self, conditions):
+    def __buildStatementFromConditions(self, conditions):
         "Returns an sql_statement to match products given a condition"
         sql_statement = 'SELECT products_handle FROM products WHERE ' 
         for i, condition in enumerate(conditions):
-            sql_statement += self.processCondition(condition)
+            sql_statement += self.__buildStatementFragment(condition)
             if i < len(conditions) - 1:
                 sql_statement += ' AND '
             else:
@@ -300,17 +350,22 @@ def main():
         cur.execute('delete from products_collections') 
         con.commit()
     import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
-    c = Collection("Tapestry Satin Vests", ("tag", "equals", "tapestry satin"), ("tag", "equals", "vest"))
-    d = Collection("Hardwick Tuxedo", ("vendor", "equals", "hardwick"), ("tag", "equals", "tuxedo"))
-    e = Collection("Neil Allyn", ("vendor", "equals", "Neil Allyn"), ("tag", "equals", "Tuxedo"), ("title", "does not contain", "big and tall"))
-    print(e)
-    for product in e.products:
-        print("id: " + str(product.id) + " handle: " + product.handle)
+    c = Collection("Tapestry Satin Vests")
+    c.processConditions(("tag", "equals", "tapestry satin"), ("tag", "equals", "vest"))
+    d = Collection("Hardwick Tuxedo")
+    d.processConditions(("vendor", "equals", "hardwick"), ("tag", "equals", "tuxedo"))
+    e = Collection("Neil Allyn")
+    e.processConditions(("vendor", "equals", "Neil Allyn"), ("tag", "equals", "Tuxedo"), ("title", "does not contain", "big and tall"))
+    #print(e)
+    #for product in e.products:
+    #    print("id: " + str(product.id) + " handle: " + product.handle)
     with DB() as con:
         c.save(con.cursor())
         d.save(con.cursor())
         e.save(con.cursor())
         con.commit()
+    f = Collection(handle="Nei")
+    print(f.products)
     # End test block
 
     # Argument handling

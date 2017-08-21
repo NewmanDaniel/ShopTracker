@@ -34,6 +34,7 @@ def main():
         cur.execute("""
         CREATE TABLE `collections`  (
             `collections_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+            `collections_handle` varchar(512) NOT NULL DEFAULT '',
             `collections_title` varchar(512) NOT NULL DEFAULT '',
             PRIMARY KEY (`collections_id`)
         );

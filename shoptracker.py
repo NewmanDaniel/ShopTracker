@@ -75,7 +75,6 @@ class Product:
         # ID, used for collections
         self.id = kwargs.get('id','')
 
-        #self.collections = kwargs.get('collections', [])
         self.g_age_group = kwargs.get('g_age_group','')
         self.g_color= kwargs.get('g_color','')
         self.g_product_category = kwargs.get('g_product_category','')
@@ -122,10 +121,9 @@ class Product:
 class Collection:
     """
     Represents a collection on shopify. Can be constructed using conditions once products are imported in DB.
-    Conditions are represented as 3 element tuples, comprised of the variable (tag, vendor), relation  
-    (i.e. equals, lessthan), and value.
+    Conditions are represented as 3 element tuples, comprised of the variable (tag, title, vendor), relation  
+    (equals, does not contain), and value.
     """ 
-    #e = Collection("Neil Allyn", ("vendor", "equals", "Neil Allyn"), ("tag", "equals", "Tuxedo"), ("title", "does not contain", "big and tall"))
     variables = ['tag', 'title', 'vendor']
     relations = ['equals', 'does not contain', 'less than', 'greater than']
 
@@ -141,7 +139,7 @@ class Collection:
             if Collection.isCondition(condition):
                 self.conditions.append(condition)
             else:
-                raise ValueError("Attempted to instantiate collection with malformed condition") 
+                raise ValueError("Attempted to instantiate collection with malformed condition")
 
         # Build SQL statement
         sql_statement = self.processConditions(self.conditions)
@@ -150,13 +148,15 @@ class Collection:
         product_handles = self.getProductHandles(sql_statement)
 
         # Build product List
-        self.products = self.getProducts(product_handles)
+        self.products = self.getProductsFromHandles(product_handles)
 
         logging.debug('Collection instantiated: %s' %(self.handle)) 
+
     def __repr__(self):
         return self.handle
 
-    def getProducts(self, product_handles):
+    def getProductsFromHandles(self, product_handles):
+        "Feeds product handles into Product's getProduct method"
         products = []
         for product_handle in product_handles:
             products.append(Product.getProduct(product_handle))
@@ -164,6 +164,7 @@ class Collection:
         return products
 
     def getProductHandles(self, sql_statement):
+        "Used with the constructed SQL statement to return a filtered list of product handles"
         with DB() as con:
             product_handles = []
             cur = con.cursor()
@@ -208,6 +209,7 @@ class Collection:
         return sql_statement
 
     def isCondition(condition):
+        "Verifies the condition is correctly formed"
         correct_length = len(condition) == 3
         correct_variable = condition[0] in Collection.variables
         correct_relation = condition[1] in Collection.relations
@@ -216,6 +218,31 @@ class Collection:
         else:
             return False
 
+    def save(self, cur):
+        try:
+            select_statement = "SELECT collections_handle FROM collections WHERE collections_handle = '%s'"
+            select_id_statement = "SELECT collections_id FROM collections WHERE collections_handle = '%s'"
+            insert_collection_statement = "INSERT INTO collections (collections_handle, collections_title) VALUES ('%s', '%s')"
+            insert_product_into_collection_statement = "INSERT INTO products_collections (products_id, collections_id) VALUES (%d, %d)" 
+
+            # Check if collection exists, insert into collections table if it doesn't
+            cur.execute(select_statement %(self.handle))
+            if not cur.fetchall():
+                cur.execute(insert_collection_statement % (self.handle, self.title))
+
+            # Get ID for collection
+            cur.execute(select_id_statement %(self.handle))
+            collections_id = cur.fetchone()[0]
+
+            # Insert products into the collection
+            for product in self.products:
+                cur.execute(insert_product_into_collection_statement % (product.id, collections_id))
+
+
+        except mysql.Error as e:
+            print("Problem while saving a collection to database")
+            #print("Error %d: %s" % (e.args[0], e.args[1]))
+            print(e)
 
 def import_csv_from_shopify(csv_file):
     """
@@ -269,6 +296,8 @@ def main():
     with DB() as con:
         cur = con.cursor()
         cur.execute('delete from products') 
+        cur.execute('delete from collections') 
+        cur.execute('delete from products_collections') 
         con.commit()
     import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
     c = Collection("Tapestry Satin Vests", ("tag", "equals", "tapestry satin"), ("tag", "equals", "vest"))
@@ -277,6 +306,11 @@ def main():
     print(e)
     for product in e.products:
         print("id: " + str(product.id) + " handle: " + product.handle)
+    with DB() as con:
+        c.save(con.cursor())
+        d.save(con.cursor())
+        e.save(con.cursor())
+        con.commit()
     # End test block
 
     # Argument handling

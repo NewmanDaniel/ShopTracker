@@ -166,6 +166,7 @@ class Product:
             print(e)
             print(cur)
             raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s))
+
     def getProduct(product_ident, **options): 
         "Gets a product based on its handle, can find a product based on id if id=True keyword is passed"
         kwargs = {}
@@ -210,49 +211,53 @@ class Product:
                     color_str += '%s' %(color)
         return color_str
 
+    # FIX ME: needs refactoring
     def process_g_colors(self):
         "Processes colors from title and inserts into g_colors field"
         logging.debug("Processing colors for %s" %(self.handle))
         colors = []
-        title_words = self.title.split(" ")
+        title_words = self.title.lower().split(" ")
 
         colorsAppended = 0
         # Scan through to find all colors in Product Title
         for color in googleDefs.color:
             color_in_title_str = color.lower() in self.title.lower()
-            under_color_limit = (colorsAppended < 3)
-            if color_in_title_str and under_color_limit:
-                colors.append(color)
+            if color_in_title_str:
+                colors.append(color.lower())
                 colorsAppended += 1
                 logging.debug("Added color %s for %s" %(color, self.handle))
 
         # Eliminate colors words nested inside other colors
 
-        # one word case
+        # word in word case
         for color in colors:
             if color not in title_words and len(color.split(" ")) < 2:
                 colors.remove(color)
-                logging.debug("removed color %s for %s 1 word case" %(color, self.handle))
+                colorsAppended -= 1
+                logging.debug("removed color %s for %s 1 word case" %(color, self.handle)) 
 
-        # multi word case
-        # get max word count, and multi word colors
-        max_word_count = 0
-        multi_colors = [] 
-        for color in colors:
-            if len(color.split(" ")) > max_word_count:
-                max_word_count = len(color.split(" "))
-            if len(color.split(" ")) > 1:
-                multi_colors.append(color)
-        #print(multi_colors)
-        #logging.debug("removed color %s for %s 1 word case" %(color, self.handle))
+        # word in multi word case 
+        multi_colors = []
 
-        # remove colors that can nest inside multi word colors
+        # get multiwords
         for color in colors:
-            if len(color.split(" ")) < max_word_count:
-                for multi_color in multi_colors:
-                    if color in multi_color:
+            color_words = color.split(" ")
+            if len(color_words) > 1:
+                multi_colors.append(color_words) 
+
+        # go through multiwords
+        for color in colors:
+            for multi_color in multi_colors:
+                for fragment in multi_color:
+                    if color.lower() in fragment.lower() and color in colors:
+                        #print('Removing %s' %(color))
                         colors.remove(color)
-                        logging.debug("removed color %s, nested in %s" %(color, multi_color))
+                        colorsAppended -= 1 
+
+        # check if colors > 3, and if so, pop the colors off until colors is correct length
+        if len(colors) > 3:
+            for i in range(len(colors) - 3):
+                colors.pop()
 
         # Did not find a color, log it
         if not colors:
@@ -655,14 +660,14 @@ def main():
     #logging.critical('critical msg')
 
     #Test Block
-    # with DB() as con:
-    #     cur = con.cursor()
-    #     cur.execute('delete from products') 
-    #     cur.execute('delete from collections') 
-    #     cur.execute('delete from products_collections') 
-    #     con.commit()
-    # import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
-    # import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
+    with DB() as con:
+        cur = con.cursor()
+        cur.execute('delete from products') 
+        cur.execute('delete from collections') 
+        cur.execute('delete from products_collections') 
+        con.commit()
+    import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
+    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
 
     # with DB() as con:
     #     cur = con.cursor()
@@ -674,9 +679,14 @@ def main():
     #     con.commit()
 
     i=0
-    for collection in Collection.getCollections():
-        for product in collection.products:
-            i+=1
+    with DB() as con:
+        cur = con.cursor()
+        for collection in Collection.getCollections():
+            for product in collection.products:
+                print("Processing color for: %s" %(product.title))
+                product.process_g_colors()
+                product.save(cur)
+        con.commit()
     # End test block
 
     # Argument handling

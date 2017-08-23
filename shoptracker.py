@@ -79,7 +79,7 @@ class Product:
         self.tags = kwargs.get('tags','')
 
         self.url= kwargs.get('url','')
-        self.img_url = kwargs.get('img_url','') 
+        self.img_url = kwargs.get('img_url','')
 
         # ID, used for collections
         self.id = kwargs.get('id','')
@@ -167,7 +167,7 @@ class Product:
             print(cur)
             raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s))
 
-    def getProduct(product_ident, **options): 
+    def getProduct(product_ident, **options):
         "Gets a product based on its handle, can find a product based on id if id=True keyword is passed"
         kwargs = {}
         with DB(CursorClass='DictCursor') as con:
@@ -193,9 +193,9 @@ class Product:
             for column in cur.description:
                 t_columns.append(column[0])
 
-            for p_attribute, p_column in Product.fields.items(): 
+            for p_attribute, p_column in Product.fields.items():
                 if p_column in t_columns:
-                    kwargs[p_attribute] = result[p_column] 
+                    kwargs[p_attribute] = result[p_column]
 
             return Product(**kwargs)
 
@@ -241,7 +241,7 @@ class Product:
         for color in colors:
             color_words = color.split(" ")
             if len(color_words) > 1:
-                multi_colors.append(color_words) 
+                multi_colors.append(color_words)
 
         # go through multiwords
         for fragments in multi_colors:
@@ -251,20 +251,20 @@ class Product:
                     cond2 = fragment in colors
                     if cond1 and cond2:
                         colors.remove(color)
-                        colorsAppended -= 1 
+                        colorsAppended -= 1
 
         # check if colors > 3, and if so, pop the colors off until colors is correct length
         if len(colors) > 3:
             for i in range(len(colors) - 3):
                 logging.info("Too many colors for %s, popping color" %(self.handle))
-                colors.pop() 
+                colors.pop()
 
         # Did not find a color, log it
         if not colors:
             logging.info("Could not find a color for %s" %(self.handle))
 
         # Assign g_color to the output of color_list_to_string which formats it to google's specifications
-        self.g_color = Product.color_list_to_string(colors) 
+        self.g_color = Product.color_list_to_string(colors)
 
     def get_handle(title):
         return re.sub(r'\s', '-', title.lower()).replace("'","")
@@ -272,14 +272,14 @@ class Product:
 class Collection:
     """
     Represents a collection on shopify. Can be constructed using conditions once products are imported in DB.
-    Conditions are represented as 3 element tuples, comprised of the variable (tag, title, vendor), relation  
+    Conditions are represented as 3 element tuples, comprised of the variable (tag, title, vendor), relation
     (equals, does not contain), and value.
 
     Google product attributes, such as age group, gender, and taxonomy, can be defined in a collection then propogated to its products.
     """
     # condition values
     variables = ['tag', 'title', 'vendor']
-    relations = ['equals', 'does not contain', 'less than', 'greater than'] 
+    relations = ['equals', 'does not contain', 'less than', 'greater than']
 
     def __init__(self, title=None, **kwargs):
         # FIX ME.. just use Collection.getCollection instead of this silliness
@@ -288,11 +288,11 @@ class Collection:
             self.handle = kwargs.get('handle')
         else:
             self.title = title
-            self.handle = Product.get_handle(title) 
+            self.handle = Product.get_handle(title)
         logging.debug('Collection instantiated: %s' %(self.handle))
 
     def __repr__(self):
-        return self.handle 
+        return self.handle
 
 
     def __getCollectionHandles():
@@ -316,7 +316,7 @@ class Collection:
         with DB() as con:
             cur = con.cursor()
             c = Collection(handle=collection_handle)
-            statement = "select collections_id, collections_title from collections where collections_handle = '%s'" 
+            statement = "select collections_id, collections_title from collections where collections_handle = '%s'"
             cur.execute(statement %(collection_handle))
             row = cur.fetchone()
             id = row[0]; title = row[1]
@@ -324,7 +324,7 @@ class Collection:
             c.id = id
             c.title = title
             c.__gatherProducts()
-            return c 
+            return c
 
     def processConditions(self, *conditions):
         self.conditions = []
@@ -409,7 +409,7 @@ class Collection:
         variable = condition[0]; relation = condition[1]; value = condition[2]
 
         if variable == 'tag':
-            if relation == 'equals': 
+            if relation == 'equals':
                 sql_statement_fragment = "products_tags LIKE '%%%s%%'" % (value)
             if relation == 'does not contain':
                 sql_statement_fragment = "products_tags NOT LIKE '%%%s%%'" % (value)
@@ -429,7 +429,7 @@ class Collection:
 
     def __buildStatementFromConditions(self, conditions):
         "Returns an sql_statement to match products given a condition"
-        sql_statement = 'SELECT products_handle FROM products WHERE ' 
+        sql_statement = 'SELECT products_handle FROM products WHERE '
         for i, condition in enumerate(conditions):
             sql_statement += self.__buildStatementFragment(condition)
             if i < len(conditions) - 1:
@@ -453,7 +453,7 @@ class Collection:
             select_statement = "SELECT collections_handle FROM collections WHERE collections_handle = '%s'"
             select_id_statement = "SELECT collections_id FROM collections WHERE collections_handle = '%s'"
             insert_collection_statement = "INSERT INTO collections (collections_handle, collections_title) VALUES ('%s', '%s')"
-            insert_product_into_collection_statement = "INSERT INTO products_collections (products_id, collections_id) VALUES (%d, %d)" 
+            insert_product_into_collection_statement = "INSERT INTO products_collections (products_id, collections_id) VALUES (%d, %d)"
 
             # Check if collection exists, insert into collections table if it doesn't
             cur.execute(select_statement %(self.handle))
@@ -466,7 +466,7 @@ class Collection:
 
             # Insert products into the collection
             for product in self.products:
-                cur.execute(insert_product_into_collection_statement % (product.id, collections_id)) 
+                cur.execute(insert_product_into_collection_statement % (product.id, collections_id))
 
         except mysql.Error as e:
             print("Problem while saving a collection to database")
@@ -478,7 +478,7 @@ class Collection:
             cur = con.cursor()
             for product in self.products:
                 product.process_g_colors()
-                product.save(cur) 
+                product.save(cur)
             con.commit()
 
 def import_collections_print_collection_list(collection_list):
@@ -491,7 +491,7 @@ def clean_sql(sql_str):
     return sql_str.replace('"','').replace("'","\\'").strip()
 
 def parse_condition_str(condition_str):
-    "Helper function to translate condition strs to tuples that can be accepted by collection object" 
+    "Helper function to translate condition strs to tuples that can be accepted by collection object"
     # Need to implement greater than, less than
 
     variables = {
@@ -504,9 +504,9 @@ def parse_condition_str(condition_str):
         "is equal to":"equals",
         "contains":"equals",
         "does not contain":"does not contain",
-    } 
+    }
 
-    condition = '' 
+    condition = ''
     variable = ''; relation = ''; value = ''
 
     # get variable
@@ -567,7 +567,7 @@ def import_collections_from_shopify(*html_files):
     blacklist = ['hidden', 'Hidden', 'HIDDEN', 'internal', 'Internal', 'INTERNAL',
                  'Newest Products', 'Best Selling Products', 'Home page']
     for html_file in html_files:
-        soup = BeautifulSoup(html_file, 'lxml') 
+        soup = BeautifulSoup(html_file, 'lxml')
         trs = soup.find_all('tr')
         # navigate through TRs
         for tr in trs:
@@ -579,7 +579,7 @@ def import_collections_from_shopify(*html_files):
                 }
 
                 # get title
-                collection['title'] = tr.find_all('td')[2].text.strip() 
+                collection['title'] = tr.find_all('td')[2].text.strip()
                 # get conditions
                 conditions = []
                 for li in tr.find_all('td')[3].find_all('li'):
@@ -589,7 +589,7 @@ def import_collections_from_shopify(*html_files):
 
                 # check blacklist
                 has_bad_word = False
-                for bad_word in blacklist: 
+                for bad_word in blacklist:
                     if bad_word in collection['title']:
                         has_bad_word = True
 
@@ -601,13 +601,13 @@ def import_collections_from_shopify(*html_files):
     for collection in collection_list:
         conditions = []
         for condition_str in collection['condition_strs']:
-            conditions.append(parse_condition_str(condition_str)) 
+            conditions.append(parse_condition_str(condition_str))
         collection['conditions'] = conditions
 
     # Give dict with collection titles and tuples to collection_bulk_import function
     collection_bulk_import(collection_list)
 
-    #import_collections_print_collection_list(collection_list) 
+    #import_collections_print_collection_list(collection_list)
 
 def import_csv_from_shopify(csv_file):
     """
@@ -643,10 +643,10 @@ def import_csv_from_shopify(csv_file):
 def clear_db():
     with DB() as con:
         cur = con.cursor()
-        cur.execute('delete from products') 
-        cur.execute('delete from collections') 
-        cur.execute('delete from products_collections') 
-        con.commit() 
+        cur.execute('delete from products')
+        cur.execute('delete from collections')
+        cur.execute('delete from products_collections')
+        con.commit()
 
 def process_colors_for_all_products():
     with DB() as con:
@@ -662,9 +662,9 @@ def print_error():
     """
     Prints the error if command wasn't formatted correctly
     """
-    print("Invalid Syntax,") 
+    print("Invalid Syntax,")
 
-def main(): 
+def main():
     """
     Handles command arguments
     """
@@ -677,8 +677,8 @@ def main():
 
     #Test Block
     clear_db()
-    import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
-    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
+    import_csv_from_shopify(open('misc/products_export.csv', 'r'))
+    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
     process_colors_for_all_products()
     # End test block
 
@@ -690,7 +690,7 @@ def main():
         print("bla")
     else:
         pass
-        #print_error() 
+        #print_error()
 
 if __name__ == '__main__':
     main()

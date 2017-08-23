@@ -65,6 +65,38 @@ class Product:
         self.g_product_category = kwargs.get('g_product_category','')
         #logging.debug('Product object instantiated, handle: %s' % (self.handle))
 
+    def get_all_products():
+        with DB() as con:
+            product_handles = []
+            cur = con.cursor()
+            statement = "select products_handle from products"
+            cur.execute(statement)
+            for row in cur.fetchall():
+                handle = row[0]
+                product_handles.append(handle)
+            return [Product(handle) for handle in product_handles]
+
+    def get_orphans():
+        orphans = []
+        all_products = Product.get_all_products()
+        for product in all_products:
+            if not product.has_collection():
+                orphans.append(product)
+        return orphans
+
+    def has_collection(self):
+        with DB() as con:
+            cur = con.cursor()
+            statement = "select products_handle from products join products_collections on products.products_id=products_collections.products_id where products_handle = '%s'" %(self.handle)
+            print(statement)
+            cur.execute(statement)
+            has = cur.fetchall()
+            if has:
+                return True
+            else:
+                return False
+
+
     def __repr__(self):
         return self.handle
 
@@ -405,12 +437,13 @@ class Collection:
         "Returns an sql statement fragment for use in the __build_statement_from_conditions method"
         sql_statement_fragment= ''
         variable = condition[0]; relation = condition[1]; value = condition[2]
+        sql_tag_find_regex = "'(^\ *|,\ )%s(,\ *|\ *$)'" % (value)
 
         if variable == 'tag':
             if relation == 'equals':
-                sql_statement_fragment = "products_tags LIKE '%%%s%%'" % (value)
+                sql_statement_fragment = "products_tags REGEXP %s" % (sql_tag_find_regex)
             if relation == 'does not contain':
-                sql_statement_fragment = "products_tags NOT LIKE '%%%s%%'" % (value)
+                sql_statement_fragment = "products_tags REGEXP %s" % (sql_tag_find_regex)
         if variable == 'title':
             if relation == 'equals':
                 sql_statement_fragment = "products_title LIKE '%%%s%%'" % (value)
@@ -464,7 +497,8 @@ class Collection:
 
             # Insert products into the collection
             for product in self.products:
-                cur.execute(insert_product_into_collection_statement % (product.id, collections_id))
+                s = insert_product_into_collection_statement % (product.id, collections_id)
+                cur.execute(s)
 
         except mysql.Error as e:
             print("Problem while saving a collection to database")
@@ -674,14 +708,20 @@ def main():
     #logging.critical('critical msg')
 
     #Test Block
-    #clear_db()
-    #import_csv_from_shopify(open('misc/products_export.csv', 'r'))
-    #import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
-    #process_colors_for_all_products()
-    p = Product.get_product('air-force-blue-clip-suspenders')
-    p.set_tags(['these', 'are', 'SOME', 'cool TAGS'])
-    print(p.get_tags())
-    print(p.has_tag('Are'))
+    clear_db()
+    import_csv_from_shopify(open('misc/products_export.csv', 'r'))
+    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
+    process_colors_for_all_products()
+    # p = Product.get_product('air-force-blue-clip-suspenders')
+    # p.set_tags(['these', 'are', 'SOME', 'cool TAGS'])
+    # print(p.get_tags())
+    # print(p.has_tag('Are'))
+    # print("--")
+    #p = Product.get_product('tie-option-5')
+    #print(p.has_collection())
+    #list = Product.get_all_products()
+    orphans = Product.get_orphans()
+    [print(orphan) for orphan in orphans]
     # End test block
 
     # Argument handling

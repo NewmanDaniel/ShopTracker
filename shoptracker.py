@@ -211,7 +211,6 @@ class Product:
                     color_str += '%s' %(color)
         return color_str
 
-    # FIX ME: needs refactoring
     def process_g_colors(self):
         "Processes colors from title and inserts into g_colors field"
         logging.debug("Processing colors for %s" %(self.handle))
@@ -234,30 +233,31 @@ class Product:
             if color not in title_words and len(color.split(" ")) < 2:
                 colors.remove(color)
                 colorsAppended -= 1
-                logging.debug("removed color %s for %s 1 word case" %(color, self.handle)) 
 
-        # word in multi word case 
-        multi_colors = []
+        # word in multi word case
 
         # get multiwords
+        multi_colors = []
         for color in colors:
             color_words = color.split(" ")
             if len(color_words) > 1:
                 multi_colors.append(color_words) 
 
         # go through multiwords
-        for color in colors:
-            for multi_color in multi_colors:
-                for fragment in multi_color:
-                    if color.lower() in fragment.lower() and color in colors:
-                        #print('Removing %s' %(color))
+        for fragments in multi_colors:
+            for fragment in fragments:
+                for color in colors:
+                    cond1 = color == fragment
+                    cond2 = fragment in colors
+                    if cond1 and cond2:
                         colors.remove(color)
                         colorsAppended -= 1 
 
         # check if colors > 3, and if so, pop the colors off until colors is correct length
         if len(colors) > 3:
             for i in range(len(colors) - 3):
-                colors.pop()
+                logging.info("Too many colors for %s, popping color" %(self.handle))
+                colors.pop() 
 
         # Did not find a color, log it
         if not colors:
@@ -640,8 +640,26 @@ def import_csv_from_shopify(csv_file):
         for product in p_list:
             product.save(con.cursor())
 
+        con.commit()
+# -- misc functions --
+def clear_db():
+    with DB() as con:
+        cur = con.cursor()
+        cur.execute('delete from products') 
+        cur.execute('delete from collections') 
+        cur.execute('delete from products_collections') 
         con.commit() 
 
+def process_colors_for_all_products():
+    with DB() as con:
+        cur = con.cursor()
+        for collection in Collection.getCollections():
+            for product in collection.products:
+                print("Processing color for: %s" %(product.title))
+                product.process_g_colors()
+                product.save(cur)
+        con.commit()
+# --
 def print_error():
     """
     Prints the error if command wasn't formatted correctly
@@ -660,33 +678,10 @@ def main():
     #logging.critical('critical msg')
 
     #Test Block
-    with DB() as con:
-        cur = con.cursor()
-        cur.execute('delete from products') 
-        cur.execute('delete from collections') 
-        cur.execute('delete from products_collections') 
-        con.commit()
+    clear_db()
     import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
     import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
-
-    # with DB() as con:
-    #     cur = con.cursor()
-    #     p = Product.getProduct('black-and-white-wing-tip-with-thick-soles')
-    #     p.price = 29.91
-    #     p.process_g_colors()
-    #     print(p.g_color)
-    #     p.save(cur)
-    #     con.commit()
-
-    i=0
-    with DB() as con:
-        cur = con.cursor()
-        for collection in Collection.getCollections():
-            for product in collection.products:
-                print("Processing color for: %s" %(product.title))
-                product.process_g_colors()
-                product.save(cur)
-        con.commit()
+    process_colors_for_all_products()
     # End test block
 
     # Argument handling

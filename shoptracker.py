@@ -80,7 +80,7 @@ class Product:
                 new_values.append(value)
         return new_values
 
-    def __getSaveStatement(self, statement_type, ignore=['products_id']):
+    def __get_save_statement(self, statement_type, ignore=['products_id']):
         """
         Returns tuple containing sql statement and formatter.
         Must be given either 'update' or 'insert' statement type.
@@ -132,12 +132,12 @@ class Product:
     def save(self, cur):
         try:
             # Update
-            if Product.getProduct(self.handle):
-                s = self.__getSaveStatement('update', ignore=['products_id', 'products_handle'])
+            if Product.get_product(self.handle):
+                s = self.__get_save_statement('update', ignore=['products_id', 'products_handle'])
                 cur.execute(s)
             # Insert
             else:
-                s = self.__getSaveStatement('insert')
+                s = self.__get_save_statement('insert')
                 cur.execute(s)
         except mysql.Error as e:
             print("Problem while saving a product to database")
@@ -146,7 +146,7 @@ class Product:
             print(cur)
             raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s))
 
-    def getProduct(product_ident, **options):
+    def get_product(product_ident, **options):
         "Gets a product based on its handle, can find a product based on id if id=True keyword is passed"
         kwargs = {}
         with DB(CursorClass='DictCursor') as con:
@@ -261,7 +261,7 @@ class Collection:
     relations = ['equals', 'does not contain', 'less than', 'greater than']
 
     def __init__(self, title=None, **kwargs):
-        # FIX ME.. just use Collection.getCollection instead of this silliness
+        # FIX ME.. just use Collection.get_collection instead of this silliness
         self.products = []
         if kwargs.get('handle'):
             self.handle = kwargs.get('handle')
@@ -274,7 +274,7 @@ class Collection:
         return self.handle
 
 
-    def __getCollectionHandles():
+    def __get_collection_handles():
         with DB() as con:
             cur = con.cursor()
             statement = "select collections_handle from collections"
@@ -283,15 +283,15 @@ class Collection:
             return handles
 
 
-    def getCollections():
+    def get_collections():
         collections = []
-        handles = Collection.__getCollectionHandles()
+        handles = Collection.__get_collection_handles()
         for handle in handles:
-            collections.append(Collection.getCollection(handle))
+            collections.append(Collection.get_collection(handle))
         return collections
 
 
-    def getCollection(collection_handle):
+    def get_collection(collection_handle):
         with DB() as con:
             cur = con.cursor()
             c = Collection(handle=collection_handle)
@@ -302,31 +302,31 @@ class Collection:
 
             c.id = id
             c.title = title
-            c.__gatherProducts()
+            c.__gather_products()
             return c
 
-    def processConditions(self, *conditions):
+    def process_conditions(self, *conditions):
         self.conditions = []
 
         # Verify conditions
         for condition in conditions:
-            if Collection.isCondition(condition):
+            if Collection.is_condition(condition):
                 self.conditions.append(condition)
             else:
                 raise ValueError("Attempted to instantiate collection with malformed condition")
 
         # Build SQL statement
-        sql_statement = self.__buildStatementFromConditions(self.conditions)
+        sql_statement = self.__build_statement_from_conditions(self.conditions)
 
         # Get product handle list
-        product_handles = self.__getProductHandles(sql_statement)
+        product_handles = self.__get_product_handles(sql_statement)
 
         # Build product List
-        self.products = self.__getProductsFromHandles(product_handles)
+        self.products = self.__get_products_from_handles(product_handles)
 
         self.product_count = len(self.products)
 
-    def getProducts(self):
+    def get_products(self):
             return self.products
 
     def generate_urls(self, cur):
@@ -336,7 +336,7 @@ class Collection:
             product.url = url
             product.save(cur)
 
-    def __gatherProducts(self):
+    def __gather_products(self):
         "Used to build a products list for a collection that exists in the database"
         with DB() as con:
             cur = con.cursor()
@@ -353,26 +353,26 @@ class Collection:
             for row in cur.fetchall():
                 product_ids.append(row[0])
 
-            # feed them into getProductsFromIDs
-            self.products = self.__getProductsFromIDs(product_ids)
+            # feed them into get_productsFromIDs
+            self.products = self.__get_products_from_ids(product_ids)
 
 
-    def __getProductsFromIDs(self, product_ids):
+    def __get_products_from_ids(self, product_ids):
         products = []
         for product_id in product_ids:
-            products.append(Product.getProduct(product_id, id=True))
+            products.append(Product.get_product(product_id, id=True))
         return products
 
 
-    def __getProductsFromHandles(self, product_handles):
-        "Feeds product handles into Product's getProduct method"
+    def __get_products_from_handles(self, product_handles):
+        "Feeds product handles into Product's get_product method"
         products = []
         for product_handle in product_handles:
-            products.append(Product.getProduct(product_handle))
+            products.append(Product.get_product(product_handle))
             logging.debug('Collection %s added product %s' %(self.handle, product_handle))
         return products
 
-    def __getProductHandles(self, sql_statement):
+    def __get_product_handles(self, sql_statement):
         "Used with the constructed SQL statement to return a filtered list of product handles"
         with DB() as con:
             product_handles = []
@@ -382,8 +382,8 @@ class Collection:
                 product_handles.append(product[0])
             return product_handles
 
-    def __buildStatementFragment(self, condition):
-        "Returns an sql statement fragment for use in the __buildStatementFromConditions method"
+    def __build_statement_fragment(self, condition):
+        "Returns an sql statement fragment for use in the __build_statement_from_conditions method"
         sql_statement_fragment= ''
         variable = condition[0]; relation = condition[1]; value = condition[2]
 
@@ -406,18 +406,18 @@ class Collection:
         else:
             return sql_statement_fragment
 
-    def __buildStatementFromConditions(self, conditions):
+    def __build_statement_from_conditions(self, conditions):
         "Returns an sql_statement to match products given a condition"
         sql_statement = 'SELECT products_handle FROM products WHERE '
         for i, condition in enumerate(conditions):
-            sql_statement += self.__buildStatementFragment(condition)
+            sql_statement += self.__build_statement_fragment(condition)
             if i < len(conditions) - 1:
                 sql_statement += ' AND '
             else:
                 sql_statement += ';'
         return sql_statement
 
-    def isCondition(condition):
+    def is_condition(condition):
         "Verifies the condition is correctly formed"
         correct_length = len(condition) == 3
         correct_variable = condition[0] in Collection.variables
@@ -524,7 +524,7 @@ def collection_bulk_import(collection_dl):
         for collection in collection_dl:
             if collection['title'] not in titles:
                 c = Collection(clean_sql(collection['title']))
-                c.processConditions(*collection['conditions'])
+                c.process_conditions(*collection['conditions'])
                 collections.append(c)
                 titles.append(collection['title'])
             else:
@@ -630,7 +630,7 @@ def clear_db():
 def process_colors_for_all_products():
     with DB() as con:
         cur = con.cursor()
-        for collection in Collection.getCollections():
+        for collection in Collection.get_collections():
             for product in collection.products:
                 print("Processing color for: %s" %(product.title))
                 product.process_g_colors()

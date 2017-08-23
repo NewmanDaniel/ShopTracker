@@ -286,8 +286,6 @@ class Collection:
         self.products = []
         if kwargs.get('handle'):
             self.handle = kwargs.get('handle')
-            self.__gatherProducts()
-
         else:
             self.title = title
             self.handle = Product.get_handle(title) 
@@ -317,7 +315,7 @@ class Collection:
     def getCollection(collection_handle):
         with DB() as con:
             cur = con.cursor()
-            c = Collection(collection_handle)
+            c = Collection(handle=collection_handle)
             statement = "select collections_id, collections_title from collections where collections_handle = '%s'" 
             cur.execute(statement %(collection_handle))
             row = cur.fetchone()

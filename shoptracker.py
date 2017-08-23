@@ -91,6 +91,14 @@ class Product:
                 tags_str += "%s" %(tag)
         self.tags = tags_str
 
+    def has_tag(self, tag):
+        tags = [tag.lower() for tag in self.get_tags()]
+        if tag.lower() in tags:
+            return True
+        else:
+            return False
+
+
     def __get_save_statement(self, statement_type, ignore=['products_id']):
         """
         Returns tuple containing sql statement and formatter.
@@ -671,8 +679,9 @@ def main():
     #import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
     #process_colors_for_all_products()
     p = Product.get_product('air-force-blue-clip-suspenders')
-    p.set_tags(['these', 'are', 'some', 'cool tags'])
+    p.set_tags(['these', 'are', 'SOME', 'cool TAGS'])
     print(p.get_tags())
+    print(p.has_tag('Are'))
     # End test block
 
     # Argument handling

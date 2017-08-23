@@ -20,7 +20,7 @@ def main():
             `products_price` decimal(13,2) NULL DEFAULT '0',
             `products_desc` TEXT NULL,
             `products_vendor` varchar(512) NULL DEFAULT '',
-            `products_SKU` varchar(512) NULL DEFAULT '',
+            `products_sku` varchar(512) NULL DEFAULT '',
             `products_tags` varchar(2096) NULL DEFAULT '',
             `products_url` varchar(512) NULL DEFAULT '',
             `products_img_url` varchar(512) NULL DEFAULT '',

@@ -262,7 +262,7 @@ class Product:
         self.g_color = Product.color_list_to_string(colors) 
 
     def get_handle(title):
-        return re.sub(r'\s', '-', title.lower())
+        return re.sub(r'\s', '-', title.lower()).replace("'","")
 
 class Collection:
     """
@@ -277,6 +277,7 @@ class Collection:
     relations = ['equals', 'does not contain', 'less than', 'greater than'] 
 
     def __init__(self, title=None, **kwargs):
+        # FIX ME.. just use Collection.getCollection instead of this silliness
         self.products = []
         if kwargs.get('handle'):
             self.handle = kwargs.get('handle')
@@ -291,6 +292,23 @@ class Collection:
         return self.handle 
 
 
+    def __getCollectionHandles():
+        with DB() as con:
+            cur = con.cursor()
+            statement = "select collections_handle from collections"
+            cur.execute(statement)
+            handles = [x[0] for x in cur.fetchall()]
+            return handles
+
+
+    def getCollections():
+        collections = []
+        handles = Collection.__getCollectionHandles()
+        for handle in handles:
+            collections.append(Collection.getCollection(handle))
+        return collections
+
+
     def getCollection(collection_handle):
         with DB() as con:
             cur = con.cursor()
@@ -303,7 +321,7 @@ class Collection:
             c.id = id
             c.title = title
             c.__gatherProducts()
-            return c
+            return c 
 
     def processConditions(self, *conditions):
         self.conditions = []
@@ -637,27 +655,28 @@ def main():
     #logging.critical('critical msg')
 
     #Test Block
-    with DB() as con:
-        cur = con.cursor()
-        cur.execute('delete from products') 
-        cur.execute('delete from collections') 
-        cur.execute('delete from products_collections') 
-        con.commit()
-    import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
-    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
+    # with DB() as con:
+    #     cur = con.cursor()
+    #     cur.execute('delete from products') 
+    #     cur.execute('delete from collections') 
+    #     cur.execute('delete from products_collections') 
+    #     con.commit()
+    # import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
+    # import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
 
-    with DB() as con:
-        cur = con.cursor()
-        p = Product.getProduct('black-and-white-wing-tip-with-thick-soles')
-        p.price = 29.91
-        p.process_g_colors()
-        print(p.g_color)
-        p.save(cur)
-        con.commit()
+    # with DB() as con:
+    #     cur = con.cursor()
+    #     p = Product.getProduct('black-and-white-wing-tip-with-thick-soles')
+    #     p.price = 29.91
+    #     p.process_g_colors()
+    #     print(p.g_color)
+    #     p.save(cur)
+    #     con.commit()
 
-    c = Collection.getCollection('palermo-bow-tie-and-cummerbund-sets')
-    c.bulk_process_g_colors()
-    print("hello")
+    i=0
+    for collection in Collection.getCollections():
+        for product in collection.products:
+            i+=1
     # End test block
 
     # Argument handling

@@ -25,10 +25,7 @@ class DB:
     """
     def __init__(self, **kwargs):
         try:
-            if 'CursorClass' in kwargs and kwargs['CursorClass'] == 'DictCursor':
-                self.con = mysql.connect(config.db_host, config.db_user, config.db_password, config.db_name, cursorclass=mysql.cursors.DictCursor)
-            else:
-                self.con = mysql.connect(config.db_host, config.db_user, config.db_password, config.db_name)
+            self.con = mysql.connect(config.db_host, config.db_user, config.db_password, config.db_name)
             self.cursorInUse = False
         except mysql.Error as e:
             print("Problem connecting to database")
@@ -79,6 +76,20 @@ class Product:
             else:
                 new_values.append(value)
         return new_values
+
+    def get_tags(self):
+        "Returns a list containing each tag"
+        return self.tags.split(", ")
+
+    def set_tags(self, tags):
+        "Stores a list of tags into a product object"
+        tags_str = ''
+        for i, tag in enumerate(tags):
+            if i < len(tags):
+                tags_str += "%s, "
+            else:
+                tags_str += "%s"
+        self.tags = tags_str
 
     def __get_save_statement(self, statement_type, ignore=['products_id']):
         """
@@ -149,8 +160,8 @@ class Product:
     def get_product(product_ident, **options):
         "Gets a product based on its handle, can find a product based on id if id=True keyword is passed"
         kwargs = {}
-        with DB(CursorClass='DictCursor') as con:
-            cur = con.cursor()
+        with DB() as con:
+            cur = con.cursor(mysql.cursors.DictCursor)
             if options.get('id') == True:
                 # Select product by ID
                 sql_statement = "select * from products where products_id=%d" % (product_ident)
@@ -659,6 +670,8 @@ def main():
     import_csv_from_shopify(open('misc/products_export.csv', 'r'))
     import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
     process_colors_for_all_products()
+    p = Product.get_product('air-force-blue-clip-suspenders')
+    print(p)
     # End test block
 
     # Argument handling

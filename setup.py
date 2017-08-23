@@ -27,6 +27,7 @@ def main():
             `products_g_age_group` varchar(1024) NULL DEFAULT '',
             `products_g_color` varchar(1024) NULL DEFAULT '',
             `products_g_product_category` varchar(1024) NULL DEFAULT '',
+            `products_g_gender` varchar(1024) NULL DEFAULT '',
             PRIMARY KEY (`products_id`)
         );
         """)

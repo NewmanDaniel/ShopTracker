@@ -26,7 +26,6 @@ class DB:
     def __init__(self, **kwargs):
         try:
             self.con = mysql.connect(config.db_host, config.db_user, config.db_password, config.db_name)
-            self.cursorInUse = False
         except mysql.Error as e:
             print("Problem connecting to database")
             print("Error %d: %s" % (e.args[0], e.args[1]))
@@ -35,15 +34,15 @@ class DB:
         return self.con
 
     def __exit__(self, type, value, traceback):
-        self.con.close() 
+        self.con.close()
 
 class Product:
     """
     Describes a shopify product. Fields required for google shopping that don't exist on shopify will be
     marked with g_
     """
-    fields = { "id":"products_id", "handle":"products_handle", "title":"products_title", "price":"products_price", "desc":"products_desc", "vendor":"products_vendor", "sku":"products_sku", "tags":"products_tags", "url":"products_url", "img_url":"products_img_url", "g_age_group":"products_g_age_group", "g_color":"products_g_color", "g_product_category":"products_g_product_category" }
-    sql_field_type = { "products_id":"%s", "products_handle":"%s", "products_title":"%s", "products_price":"%f", "products_desc":"%s", "products_vendor":"%s", "products_sku":"%s", "products_tags":"%s", "products_url":"%s", "products_img_url":"%s", "products_g_age_group":"%s", "products_g_color":"%s", "products_g_product_category":"%s" }
+    fields = { "id":"products_id", "handle":"products_handle", "title":"products_title", "price":"products_price", "desc":"products_desc", "vendor":"products_vendor", "sku":"products_sku", "tags":"products_tags", "url":"products_url", "img_url":"products_img_url", "g_age_group":"products_g_age_group", "g_color":"products_g_color", "g_product_category":"products_g_product_category", "g_gender":"products_g_gender" }
+    sql_field_type = { "products_id":"%s", "products_handle":"%s", "products_title":"%s", "products_price":"%f", "products_desc":"%s", "products_vendor":"%s", "products_sku":"%s", "products_tags":"%s", "products_url":"%s", "products_img_url":"%s", "products_g_age_group":"%s", "products_g_color":"%s", "products_g_product_category":"%s","products_g_gender":"%s"}
     def __init__(self, title, **kwargs):
         self.title = title
         self.handle = kwargs.get('handle',Product.get_handle(title))
@@ -63,7 +62,14 @@ class Product:
         self.g_age_group = kwargs.get('g_age_group','')
         self.g_color = kwargs.get('g_color','')
         self.g_product_category = kwargs.get('g_product_category','')
+        self.g_gender = kwargs.get('g_gender','')
         #logging.debug('Product object instantiated, handle: %s' % (self.handle))
+
+    def print_product(self):
+        p_str = "Product Handle: %s" %(self.handle)
+        for field in self.fields:
+            p_str += "%s: %s\n" %(field,self.__getattribute__(field))
+        return p_str
 
     def get_all_products():
         with DB() as con:
@@ -74,7 +80,7 @@ class Product:
             for row in cur.fetchall():
                 handle = row[0]
                 product_handles.append(handle)
-            return [Product(handle) for handle in product_handles]
+            return [Product.get_product(handle) for handle in product_handles]
 
     def get_orphans():
         orphans = []
@@ -88,7 +94,6 @@ class Product:
         with DB() as con:
             cur = con.cursor()
             statement = "select products_handle from products join products_collections on products.products_id=products_collections.products_id where products_handle = '%s'" %(self.handle)
-            print(statement)
             cur.execute(statement)
             has = cur.fetchall()
             if has:
@@ -122,6 +127,14 @@ class Product:
             else:
                 tags_str += "%s" %(tag)
         self.tags = tags_str
+
+    def set_g_age_group(self, g_age_group):
+        if g_age_group.lower() in googleDefs.age_group:
+            self.g_age_group = g_age_group
+
+    def set_g_gender(self, g_gender):
+        if g_gender.lower() in googleDefs.gender:
+            self.g_gender = g_gender
 
     def has_tag(self, tag):
         tags = [tag.lower() for tag in self.get_tags()]
@@ -225,7 +238,7 @@ class Product:
 
             for p_attribute, p_column in Product.fields.items():
                 if p_column in t_columns:
-                    kwargs[p_attribute] = result[p_column]
+                    kwargs[p_attribute] = result[p_column] 
 
             return Product(**kwargs)
 
@@ -673,6 +686,7 @@ def import_csv_from_shopify(csv_file):
         con.commit()
 # -- misc functions --
 def clear_db():
+    "Wipes the database clean"
     with DB() as con:
         cur = con.cursor()
         cur.execute('delete from products')
@@ -681,6 +695,7 @@ def clear_db():
         con.commit()
 
 def process_colors_for_all_products():
+    "Attempts to derive g_color values from titles of all products in database"
     with DB() as con:
         cur = con.cursor()
         for collection in Collection.get_collections():
@@ -689,6 +704,30 @@ def process_colors_for_all_products():
                 product.process_g_colors()
                 product.save(cur)
         con.commit()
+
+def set_default_g_age_group(g_age_group):
+    products = Product.get_all_products()
+    with DB() as con:
+        cur = con.cursor()
+        if g_age_group.lower() in googleDefs.age_group:
+            for product in products:
+                print("Saving g_age_group %s for: %s"%(g_age_group, product))
+                product.set_g_age_group(g_age_group)
+                product.save(cur)
+        con.commit()
+
+
+def set_default_g_gender(g_gender):
+    products = Product.get_all_products()
+    with DB() as con:
+        cur = con.cursor()
+        if g_gender.lower() in googleDefs.gender:
+            for product in products:
+                print("Saving g_gender %s for %s"%(g_gender, product))
+                product.set_g_gender(g_gender)
+                product.save(cur)
+        con.commit()
+
 # --
 def print_error():
     """
@@ -708,10 +747,6 @@ def main():
     #logging.critical('critical msg')
 
     #Test Block
-    clear_db()
-    import_csv_from_shopify(open('misc/products_export.csv', 'r'))
-    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
-    process_colors_for_all_products()
     # p = Product.get_product('air-force-blue-clip-suspenders')
     # p.set_tags(['these', 'are', 'SOME', 'cool TAGS'])
     # print(p.get_tags())
@@ -720,8 +755,14 @@ def main():
     #p = Product.get_product('tie-option-5')
     #print(p.has_collection())
     #list = Product.get_all_products()
-    orphans = Product.get_orphans()
-    [print(orphan) for orphan in orphans]
+    #orphans = Product.get_orphans()
+    #[print(orphan) for orphan in orphans]
+    clear_db()
+    import_csv_from_shopify(open('misc/products_export.csv', 'r'))
+    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
+    process_colors_for_all_products()
+    set_default_g_age_group('adult')
+    set_default_g_gender('male')
     # End test block
 
     # Argument handling

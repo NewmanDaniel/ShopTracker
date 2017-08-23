@@ -8,9 +8,16 @@ import io
 import re
 import MySQLdb as mysql
 import csv
+import googleDefs
+
 from bs4 import BeautifulSoup
 # -- #
 import config
+
+class GoogleFeed:
+    def __init__(self, collections):
+        self.feed_str = []
+        self.collections = []
 
 class DB:
     """
@@ -59,11 +66,12 @@ class Product:
     Describes a shopify product. Fields required for google shopping that don't exist on shopify will be
     marked with g_
     """
-    fields = {"id":"products_id", "handle":"products_handle", "title":"products_title", "price":"products_price", "desc":"products_desc", "vendor":"products_vendor", "sku":"products_sku", "tags":"products_tags", "url":"products_url", "img_url":"products_img_url"}
+    fields = { "id":"products_id", "handle":"products_handle", "title":"products_title", "price":"products_price", "desc":"products_desc", "vendor":"products_vendor", "sku":"products_sku", "tags":"products_tags", "url":"products_url", "img_url":"products_img_url", "g_age_group":"products_g_age_group", "g_color":"products_g_color", "g_product_category":"products_g_product_category" }
+    sql_field_type = { "products_id":"%s", "products_handle":"%s", "products_title":"%s", "products_price":"%f", "products_desc":"%s", "products_vendor":"%s", "products_sku":"%s", "products_tags":"%s", "products_url":"%s", "products_img_url":"%s", "products_g_age_group":"%s", "products_g_color":"%s", "products_g_product_category":"%s" }
     def __init__(self, title, **kwargs):
         self.title = title
         self.handle = kwargs.get('handle',Product.get_handle(title))
-        self.price = float(kwargs.get('price',0))
+        self.price = float(kwargs.get('price',0.00))
         self.desc = kwargs.get('desc','')
         self.vendor = kwargs.get('vendor','')
         self.sku = kwargs.get('sku', '')
@@ -77,40 +85,89 @@ class Product:
         self.id = kwargs.get('id','')
 
         self.g_age_group = kwargs.get('g_age_group','')
-        self.g_color= kwargs.get('g_color','')
+        self.g_color = kwargs.get('g_color','')
         self.g_product_category = kwargs.get('g_product_category','')
         #logging.debug('Product object instantiated, handle: %s' % (self.handle))
 
     def __repr__(self):
         return self.handle
 
+    def escape_sql_values(values):
+        new_values = []
+        for value in values:
+            if type(value).__name__ == 'str':
+                new_values.append(value.replace('\"','\\\"'))
+            else:
+                new_values.append(value)
+        return new_values
+
+    def __getSaveStatement(self, statement_type, ignore=['products_id']):
+        """
+        Returns tuple containing sql statement and formatter.
+        Must be given either 'update' or 'insert' statement type.
+        sql column names should be added as an argument to the ignore list keyword.
+        products_id is ignored by default
+        """
+        sql_fields = {}
+
+        # Get each sql field and its value
+        for object_field, sql_field in self.fields.items():
+            sql_fields[sql_field] = self.__getattribute__(object_field)
+
+        if statement_type == 'update':
+            update_statement = 'UPDATE products\nSET %s\nWHERE products_handle = "%s";'
+            fragment = ''; values = []
+            for i, unpacked in enumerate(sql_fields.items()):
+                field = unpacked[0]; val = unpacked[1]
+                if field not in ignore:
+                    if i < len(sql_fields) - 1:
+                        fragment += '%s = "%s", ' % (field, self.sql_field_type[field])
+                        values.append(val)
+                    else:
+                        fragment += '%s = "%s" ' % (field, self.sql_field_type[field])
+                        values.append(val)
+            update_statement = update_statement % (fragment, self.handle)
+            values = Product.escape_sql_values(values)
+            return update_statement % tuple(values)
+
+        elif statement_type == 'insert':
+            insert_statement = 'INSERT INTO products (%s) VALUES (%s);'
+            first_fragment = ''; second_fragment = ''; values = []
+            for i, unpacked in enumerate(sql_fields.items()):
+                field = unpacked[0]; val = unpacked[1]
+                if field not in ignore:
+                    if i < len(sql_fields) - 1:
+                        first_fragment += '%s, ' % (field)
+                        second_fragment += '"%s", ' % (self.sql_field_type[field])
+                        values.append(val)
+                    else:
+                        first_fragment += '%s' % (field)
+                        second_fragment += '"%s"' % (self.sql_field_type[field])
+                        values.append(val)
+            insert_statement = insert_statement % (first_fragment, second_fragment)
+            values = Product.escape_sql_values(values)
+            return insert_statement % tuple(values)
+        else:
+            raise ValueError('__GetSaveStatement received invalid statement_type')
+
     def save(self, cur):
-        try: 
+        try:
+            # Update
             if Product.getProduct(self.handle):
-                update_statement = """
-                UPDATE products
-                SET products_title = "%s", products_price = %f, products_desc = "%s", products_vendor = "%s", products_SKU = "%s", products_tags = "%s", products_url = "%s", products_img_url = "%s"
-                WHERE products_handle = '%s';
-                """ % (self.title, self.price, self.desc.replace('\"','\\"'), self.vendor,
-                       self.sku, self.tags.replace('\"','\\"'), self.url, self.img_url, self.handle)
-                cur.execute(update_statement)
-                logging.debug('Product object updated in db, handle: %s' % (self.handle))
-            else: 
-                insert_statement = """
-                INSERT INTO products (products_handle, products_title, products_price, products_desc,
-                    products_vendor, products_SKU, products_tags, products_url, products_img_url)
-                VALUES ("%s", "%s", "%f", "%s", "%s", "%s", "%s", "%s", "%s")
-                """ % (self.handle, self.title, self.price, self.desc.replace('\"','\\"'), self.vendor,
-                       self.sku, self.tags.replace('\"','\\"'), self.url, self.img_url)
-                cur.execute(insert_statement)
-                logging.debug('Product object saved to db, handle: %s' % (self.handle)) 
+                s = self.__getSaveStatement('update', ignore=['products_id', 'products_handle'])
+                cur.execute(s)
+            # Insert
+            else:
+                s = self.__getSaveStatement('insert')
+                cur.execute(s)
         except mysql.Error as e:
             print("Problem while saving a product to database")
             #print("Error %d: %s" % (e.args[0], e.args[1]))
-            #print(e)
-            print(update_statement)
-
+            print(e)
+            print(cur)
+            raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s))
     def getProduct(product_ident, **options): 
+        "Gets a product based on its handle, can find a product based on id if id=True keyword is passed"
         kwargs = {}
         with DB(CursorClass='DictCursor') as con:
             cur = con.cursor()
@@ -141,6 +198,68 @@ class Product:
 
             return Product(**kwargs)
 
+    def color_list_to_string(colors):
+        color_str = ''
+        if len(colors) == 1:
+            return colors[0]
+        elif len(colors) > 1:
+            for i, color in enumerate(colors):
+                if i < len(colors) - 1:
+                    color_str += '%s/' %(color)
+                else:
+                    color_str += '%s' %(color)
+        return color_str
+
+    def process_g_colors(self):
+        "Processes colors from title and inserts into g_colors field"
+        logging.debug("Processing colors for %s" %(self.handle))
+        colors = []
+        title_words = self.title.split(" ")
+
+        colorsAppended = 0
+        # Scan through to find all colors in Product Title
+        for color in googleDefs.color:
+            color_in_title_str = color.lower() in self.title.lower()
+            under_color_limit = (colorsAppended < 3)
+            if color_in_title_str and under_color_limit:
+                colors.append(color)
+                colorsAppended += 1
+                logging.debug("Added color %s for %s" %(color, self.handle))
+
+        # Eliminate colors words nested inside other colors
+
+        # one word case
+        for color in colors:
+            if color not in title_words and len(color.split(" ")) < 2:
+                colors.remove(color)
+                logging.debug("removed color %s for %s 1 word case" %(color, self.handle))
+
+        # multi word case
+        # get max word count, and multi word colors
+        max_word_count = 0
+        multi_colors = [] 
+        for color in colors:
+            if len(color.split(" ")) > max_word_count:
+                max_word_count = len(color.split(" "))
+            if len(color.split(" ")) > 1:
+                multi_colors.append(color)
+        #print(multi_colors)
+        #logging.debug("removed color %s for %s 1 word case" %(color, self.handle))
+
+        # remove colors that can nest inside multi word colors
+        for color in colors:
+            if len(color.split(" ")) < max_word_count:
+                for multi_color in multi_colors:
+                    if color in multi_color:
+                        colors.remove(color)
+                        logging.debug("removed color %s, nested in %s" %(color, multi_color))
+
+        # Did not find a color, log it
+        if not colors:
+            logging.info("Could not find a color for %s" %(self.handle))
+
+        # Assign g_color to the output of color_list_to_string which formats it to google's specifications
+        self.g_color = Product.color_list_to_string(colors) 
 
     def get_handle(title):
         return re.sub(r'\s', '-', title.lower())
@@ -150,13 +269,16 @@ class Collection:
     Represents a collection on shopify. Can be constructed using conditions once products are imported in DB.
     Conditions are represented as 3 element tuples, comprised of the variable (tag, title, vendor), relation  
     (equals, does not contain), and value.
-    """ 
+
+    Google product attributes, such as age group, gender, and taxonomy, can be defined in a collection then propogated to its products.
+    """
+    # condition values
     variables = ['tag', 'title', 'vendor']
-    relations = ['equals', 'does not contain', 'less than', 'greater than']
+    relations = ['equals', 'does not contain', 'less than', 'greater than'] 
 
     def __init__(self, title=None, **kwargs):
-        self.products = [] 
-        if kwargs.get('handle'): 
+        self.products = []
+        if kwargs.get('handle'):
             self.handle = kwargs.get('handle')
             self.__gatherProducts()
 
@@ -168,9 +290,20 @@ class Collection:
     def __repr__(self):
         return self.handle 
 
+
     def getCollection(collection_handle):
         with DB() as con:
-            cursor = con.cursor() 
+            cur = con.cursor()
+            c = Collection(collection_handle)
+            statement = "select collections_id, collections_title from collections where collections_handle = '%s'" 
+            cur.execute(statement %(collection_handle))
+            row = cur.fetchone()
+            id = row[0]; title = row[1]
+
+            c.id = id
+            c.title = title
+            c.__gatherProducts()
+            return c
 
     def processConditions(self, *conditions):
         self.conditions = []
@@ -312,13 +445,20 @@ class Collection:
 
             # Insert products into the collection
             for product in self.products:
-                cur.execute(insert_product_into_collection_statement % (product.id, collections_id))
-
+                cur.execute(insert_product_into_collection_statement % (product.id, collections_id)) 
 
         except mysql.Error as e:
             print("Problem while saving a collection to database")
             #print("Error %d: %s" % (e.args[0], e.args[1]))
             print(e)
+
+    def bulk_process_g_colors(self):
+        with DB() as con:
+            cur = con.cursor()
+            for product in self.products:
+                product.process_g_colors()
+                product.save(cur) 
+            con.commit()
 
 def import_collections_print_collection_list(collection_list):
     for collection in collection_list:
@@ -446,9 +586,7 @@ def import_collections_from_shopify(*html_files):
     # Give dict with collection titles and tuples to collection_bulk_import function
     collection_bulk_import(collection_list)
 
-    #import_collections_print_collection_list(collection_list)
-
-
+    #import_collections_print_collection_list(collection_list) 
 
 def import_csv_from_shopify(csv_file):
     """
@@ -492,13 +630,13 @@ def main():
     Handles command arguments
     """
     # Instantiate logger
-    logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.INFO)
+    logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
     #logging.debug('debug msg')
     #logging.info('info msg')
     #logging.warning('warning msg')
     #logging.critical('critical msg')
 
-    # Test Block
+    #Test Block
     with DB() as con:
         cur = con.cursor()
         cur.execute('delete from products') 
@@ -507,18 +645,19 @@ def main():
         con.commit()
     import_csv_from_shopify(open('misc/products_export.csv', 'r')) 
     import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r')) 
+
     with DB() as con:
         cur = con.cursor()
-        p = Product.getProduct('gold-venetian-cummerbund-and-bow-tie-set')
-        p.price = 9999.93
+        p = Product.getProduct('black-and-white-wing-tip-with-thick-soles')
+        p.price = 29.91
+        p.process_g_colors()
+        print(p.g_color)
         p.save(cur)
         con.commit()
 
-
-        p = Product.getProduct('gold-venetian-cummerbund-and-bow-tie-set')
-        p.price = 99929.93
-        p.save(cur)
-        con.commit()
+    c = Collection.getCollection('palermo-bow-tie-and-cummerbund-sets')
+    c.bulk_process_g_colors()
+    print("hello")
     # End test block
 
     # Argument handling

@@ -85,10 +85,10 @@ class Product:
         "Stores a list of tags into a product object"
         tags_str = ''
         for i, tag in enumerate(tags):
-            if i < len(tags):
-                tags_str += "%s, "
+            if i < len(tags) - 1:
+                tags_str += "%s, " %(tag)
             else:
-                tags_str += "%s"
+                tags_str += "%s" %(tag)
         self.tags = tags_str
 
     def __get_save_statement(self, statement_type, ignore=['products_id']):
@@ -666,12 +666,13 @@ def main():
     #logging.critical('critical msg')
 
     #Test Block
-    clear_db()
-    import_csv_from_shopify(open('misc/products_export.csv', 'r'))
-    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
-    process_colors_for_all_products()
+    #clear_db()
+    #import_csv_from_shopify(open('misc/products_export.csv', 'r'))
+    #import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
+    #process_colors_for_all_products()
     p = Product.get_product('air-force-blue-clip-suspenders')
-    print(p)
+    p.set_tags(['these', 'are', 'some', 'cool tags'])
+    print(p.get_tags())
     # End test block
 
     # Argument handling

@@ -38,28 +38,7 @@ class DB:
         return self.con
 
     def __exit__(self, type, value, traceback):
-        self.con.close()
-
-    def commit(self):
-        self.con.commit()
-
-    def getCursor(self):
-        if self.cursorInUse == True:
-            raise ValueError('Database cursor is already in use', 'cursorException', 'cursorInUseException')
-        else:
-            self.cursorInUse = True
-            self.cur = self.con.cursor()
-            return self.cur
-
-    def relinquishCursor(self):
-        if self.cursorInUse == False:
-            raise ValueError('Tried to relinquish cursor when it was not in use', 'cursorException', 'cursorNotInUseExeption')
-        else:
-            self.cursorInUse = False
-            del self.cur
-
-    def close(self):
-        self.con.close()
+        self.con.close() 
 
 class Product:
     """

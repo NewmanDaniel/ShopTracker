@@ -369,6 +369,26 @@ class Collection:
             c.__gather_products()
             return c
 
+    def set_g_age_group(self, g_age_group):
+        "Propogates a g_age_group to all of a collection's products and saves them to db"
+        with DB() as con:
+            cur = con.cursor()
+            if g_age_group.lower() in googleDefs.age_group:
+                for product in self.products:
+                    product.set_g_age_group(g_age_group)
+                    product.save(cur)
+            con.commit()
+
+    def set_g_gender(self, g_gender):
+        "Propogates a g_gender to all of a collection's products and saves them to db"
+        with DB() as con:
+            cur = con.cursor()
+            if g_gender.lower() in googleDefs.gender:
+                for product in self.products:
+                    product.set_g_gender(g_gender)
+                    product.save(cur)
+            con.commit()
+
     def process_conditions(self, *conditions):
         self.conditions = []
 
@@ -404,21 +424,29 @@ class Collection:
         "Used to build a products list for a collection that exists in the database"
         with DB() as con:
             cur = con.cursor()
-            get_collection_id_statement = "select collections_id from collections where collections_handle = '%s'"
-            get_products_statement = "select products_id from products_collections where collections_id = '%s'"
-            product_ids = []
+            statement = "SELECT p.products_id FROM (products AS p) LEFT JOIN products_collections AS pc ON p.products_id=pc.products_id RIGHT JOIN collections AS c ON pc.collections_id=c.collections_id WHERE c.collections_handle = '%s' AND p.products_id IS NOT NULL;" %(self.handle)
+            cur.execute(statement)
+            rows = cur.fetchall()
+            if rows:
+                product_ids = [row[0] for row in rows]
+                self.products = self.__get_products_from_ids(product_ids)
+            else:
+                pass
+            # get_collection_id_statement = "select collections_id from collections where collections_handle = '%s'"
+            # get_products_statement = "select products_id from products_collections where collections_id = '%s'"
+            # product_ids = []
 
-            # get ID of collection
-            cur.execute(get_collection_id_statement % (self.handle))
-            collections_id = cur.fetchone()[0]
+            # # get ID of collection
+            # cur.execute(get_collection_id_statement % (self.handle))
+            # collections_id = cur.fetchone()[0]
+            # print(collections_id)
 
-            # get product IDs matching collection ID
-            cur.execute(get_products_statement % (collections_id))
-            for row in cur.fetchall():
-                product_ids.append(row[0])
+            # # get product IDs matching collection ID
+            # cur.execute(get_products_statement % (collections_id))
+            # for row in cur.fetchall():
+            #     product_ids.append(row[0])
 
             # feed them into get_productsFromIDs
-            self.products = self.__get_products_from_ids(product_ids)
 
 
     def __get_products_from_ids(self, product_ids):
@@ -628,8 +656,9 @@ def import_collections_from_shopify(*html_files):
                 # get conditions
                 conditions = []
                 for li in tr.find_all('td')[3].find_all('li'):
-                    # append them to conditions list
-                    conditions.append(li.text)
+                    # strip out apostrophes because they are ignored!!
+                    # then append them to conditions list,
+                    conditions.append(li.text.replace("'",""))
                 collection['condition_strs'] = conditions
 
                 # check blacklist
@@ -685,6 +714,9 @@ def import_csv_from_shopify(csv_file):
 
         con.commit()
 # -- misc functions --
+def get_handle(title):
+    return re.sub(r'\s', '-', title.lower()).replace("'","")
+
 def clear_db():
     "Wipes the database clean"
     with DB() as con:
@@ -756,7 +788,7 @@ def main():
     #print(p.has_collection())
     #list = Product.get_all_products()
     #orphans = Product.get_orphans()
-    #[print(orphan) for orphan in orphans]
+    #[print(orphan) for orphan in orphans] 
     clear_db()
     import_csv_from_shopify(open('misc/products_export.csv', 'r'))
     import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))

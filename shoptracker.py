@@ -14,6 +14,9 @@ from bs4 import BeautifulSoup
 # -- #
 import config
 
+# Instantiate logger
+logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
+
 class GoogleFeed:
     def __init__(self, collections):
         self.feed_str = []
@@ -770,33 +773,7 @@ def print_error():
 def main():
     """
     Handles command arguments
-    """
-    # Instantiate logger
-    logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
-    #logging.debug('debug msg')
-    #logging.info('info msg')
-    #logging.warning('warning msg')
-    #logging.critical('critical msg')
-
-    #Test Block
-    # p = Product.get_product('air-force-blue-clip-suspenders')
-    # p.set_tags(['these', 'are', 'SOME', 'cool TAGS'])
-    # print(p.get_tags())
-    # print(p.has_tag('Are'))
-    # print("--")
-    #p = Product.get_product('tie-option-5')
-    #print(p.has_collection())
-    #list = Product.get_all_products()
-    #orphans = Product.get_orphans()
-    #[print(orphan) for orphan in orphans] 
-    clear_db()
-    import_csv_from_shopify(open('misc/products_export.csv', 'r'))
-    import_collections_from_shopify(open('misc/c1.htm', 'r'), open('misc/c2.htm', 'r'), open('misc/c3.htm', 'r'))
-    process_colors_for_all_products()
-    set_default_g_age_group('adult')
-    set_default_g_gender('male')
-    # End test block
-
+    """ 
     # Argument handling
     if len(sys.argv) == 2:
         # Read in url text file and perform operations
@@ -805,7 +782,6 @@ def main():
         print("bla")
     else:
         pass
-        #print_error()
-
+        #print_error() 
 if __name__ == '__main__':
     main()

@@ -30,8 +30,6 @@ class GoogleFeed:
         else:
             return False
 
-
-
 class DB:
     """
     Sets up a db
@@ -152,10 +150,22 @@ class Product:
     def set_g_gender(self, g_gender):
         log_str = 'setting g_gender "%s" for "%s"' %(g_gender, self.handle)
         if log_str:
-            logging.debug(log_str) 
+            logging.debug(log_str)
 
         if g_gender.lower() in googleDefs.gender:
             self.g_gender = g_gender
+
+    def set_g_product_category(self, g_product_category, feed):
+        log_str = 'setting g_product_category "%s" for "%s"' %(g_product_category, self.handle)
+        bad_log_str = 'Attempted to set product %s to malformed g_product_category "%s"' % (self.handle, g_product_category)
+        if feed.verify_g_product_category(g_product_category):
+            self.g_product_category = g_product_category
+            logging.debug(log_str)
+        else:
+            logging.warn(bad_log_str)
+
+
+
 
     def has_tag(self, tag):
         tags = [tag.lower() for tag in self.get_tags()]

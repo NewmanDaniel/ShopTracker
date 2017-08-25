@@ -132,10 +132,18 @@ class Product:
         self.tags = tags_str
 
     def set_g_age_group(self, g_age_group):
+        log_str = 'setting g_age_group "%s" for "%s"' %(g_age_group, self.handle)
+        if log_str:
+            logging.debug(log_str)
+
         if g_age_group.lower() in googleDefs.age_group:
             self.g_age_group = g_age_group
 
     def set_g_gender(self, g_gender):
+        log_str = 'setting g_gender "%s" for "%s"' %(g_gender, self.handle)
+        if log_str:
+            logging.debug(log_str) 
+
         if g_gender.lower() in googleDefs.gender:
             self.g_gender = g_gender
 
@@ -200,10 +208,12 @@ class Product:
         try:
             # Update
             if Product.get_product(self.handle):
+                logging.debug('Updating product "%s" in DB' %(self.handle))
                 s = self.__get_save_statement('update', ignore=['products_id', 'products_handle'])
                 cur.execute(s)
             # Insert
             else:
+                logging.debug('inserting product "%s" in DB' %(self.handle))
                 s = self.__get_save_statement('insert')
                 cur.execute(s)
         except mysql.Error as e:
@@ -270,7 +280,7 @@ class Product:
             if color_in_title_str:
                 colors.append(color.lower())
                 colorsAppended += 1
-                logging.debug("Added color %s for %s" %(color, self.handle))
+                logging.debug("Added color %s for %s (before eliminating nested words)" %(color, self.handle))
 
         # Eliminate colors words nested inside other colors
 
@@ -308,9 +318,11 @@ class Product:
         # Did not find a color, log it
         if not colors:
             logging.info("Could not find a color for %s" %(self.handle))
-
-        # Assign g_color to the output of color_list_to_string which formats it to google's specifications
-        self.g_color = Product.color_list_to_string(colors)
+        else:
+            # Assign g_color to the output of color_list_to_string which formats it to google's specifications
+            colors_str = Product.color_list_to_string(colors)
+            logging.debug('Product "%s" assigned colors "%s"' %(self.handle, colors_str))
+            self.g_color = colors_str
 
     def get_handle(title):
         return re.sub(r'\s', '-', title.lower()).replace("'","")
@@ -374,6 +386,9 @@ class Collection:
 
     def set_g_age_group(self, g_age_group):
         "Propogates a g_age_group to all of a collection's products and saves them to db"
+        logging.info('- Setting g_age_group "%s" for Collection "%s"' %(g_age_group, self.handle))
+        print('Setting g_age_group "%s" for Collection "%s"...'%(g_age_group, self.handle))
+
         with DB() as con:
             cur = con.cursor()
             if g_age_group.lower() in googleDefs.age_group:
@@ -384,6 +399,8 @@ class Collection:
 
     def set_g_gender(self, g_gender):
         "Propogates a g_gender to all of a collection's products and saves them to db"
+        logging.info('- Setting g_gender "%s" for Collection "%s"'%(g_gender, self.handle))
+        print('Setting g_gender "%s" for Collection "%s"...'%(g_gender, self.handle))
         with DB() as con:
             cur = con.cursor()
             if g_gender.lower() in googleDefs.gender:
@@ -637,6 +654,8 @@ def import_collections_from_shopify(*html_files):
     """
     Imports arguments from collection html pages from the shopify admin
     """
+    logging.info('- Importing collections from shopify html files')
+    print('Importing collections from shopify html files...')
     # Extract titles and conditions from html, store them in collection_list
     collection_list = []
     # Don't add if collection contains a blacklisted word in the title
@@ -690,6 +709,8 @@ def import_csv_from_shopify(csv_file):
     """
     Imports shopify product CSV from shopify
     """
+    logging.info('- Importing products from shopify csv: "%s"' %(csv_file.name))
+    print('Importing products from shopify csv: "%s"...:' %(csv_file.name))
     with DB() as con:
         p_list = []
         reader = csv.DictReader(csv_file)
@@ -697,7 +718,7 @@ def import_csv_from_shopify(csv_file):
         for row in reader:
             isPublished = row["Published"]
             if isPublished == 'true':
-                logging.info('Importing handle %s from %s' % (row["Handle"], csv_file.name))
+                logging.debug('Importing product with handle %s from %s' % (row["Handle"], csv_file.name))
                 p_list.append(Product(
                     row["Title"],
                     handle=row["Handle"],
@@ -710,7 +731,7 @@ def import_csv_from_shopify(csv_file):
             elif isPublished == 'false':
                 logging.debug('Skipped %s, pub value %s' % (row["Handle"], row["Published"]))
             else:
-                logging.debug('Skipped %s: malformed Published value'% (row["Handle"]))
+                logging.warn('Skipped %s: malformed Published value'% (row["Handle"]))
 
         for product in p_list:
             product.save(con.cursor())
@@ -723,6 +744,8 @@ def get_handle(title):
 def clear_db():
     "Wipes the database clean"
     with DB() as con:
+        logging.info('- Wiping Database')
+        print("Wiping database...")
         cur = con.cursor()
         cur.execute('delete from products')
         cur.execute('delete from collections')
@@ -730,35 +753,42 @@ def clear_db():
         con.commit()
 
 def process_colors_for_all_products():
-    "Attempts to derive g_color values from titles of all products in database"
+    logging.info('- Processing colors for all products')
+    print("Processing colors for all products...",)
     with DB() as con:
         cur = con.cursor()
         for collection in Collection.get_collections():
             for product in collection.products:
-                print("Processing color for: %s" %(product.title))
+                #print("Processing color for: %s" %(product.title))
                 product.process_g_colors()
                 product.save(cur)
         con.commit()
 
-def set_default_g_age_group(g_age_group):
+def set_default_g_age_group(g_age_group): 
+    logging.info('- Setting default age group for all products to "%s"' %(g_age_group))
+    print('Setting default age group for all products to %s...' %(g_age_group))
+
     products = Product.get_all_products()
     with DB() as con:
         cur = con.cursor()
         if g_age_group.lower() in googleDefs.age_group:
             for product in products:
-                print("Saving g_age_group %s for: %s"%(g_age_group, product))
+                #print("Saving g_age_group %s for: %s"%(g_age_group, product))
                 product.set_g_age_group(g_age_group)
                 product.save(cur)
         con.commit()
 
 
-def set_default_g_gender(g_gender):
+def set_default_g_gender(g_gender): 
+    logging.info('- Setting default gender for all products to "%s"' %(g_gender))
+    print('Setting default gender for all products to %s...' %(g_gender))
+
     products = Product.get_all_products()
     with DB() as con:
         cur = con.cursor()
         if g_gender.lower() in googleDefs.gender:
             for product in products:
-                print("Saving g_gender %s for %s"%(g_gender, product))
+                #print("Saving g_gender %s for %s"%(g_gender, product))
                 product.set_g_gender(g_gender)
                 product.save(cur)
         con.commit()

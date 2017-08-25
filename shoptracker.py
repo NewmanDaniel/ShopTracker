@@ -430,6 +430,21 @@ class Collection:
                     product.save(cur)
             con.commit()
 
+    def set_g_product_category(self, g_product_category):
+        "Propogates a g_product_category to all of a collection's products and saves them to db"
+        with DB() as con:
+            cur = con.cursor()
+            if GoogleFeed.verify_g_product_category(g_product_category):
+                logging.info('- Setting g_product_category "%s" for Collection "%s"'%(g_product_category, self.handle))
+                print('Setting g_product_category "%s" for Collection "%s"...'%(g_product_category, self.handle)) 
+                for product in self.products:
+                    product.set_g_product_category(g_product_category)
+                    product.save(cur)
+                con.commit()
+            else:
+                bad_log_str = 'Attempted to set collection %s to malformed g_product_category' % (self.handle)
+                logging.warn(bad_log_str)
+
     def process_conditions(self, *conditions):
         self.conditions = []
 

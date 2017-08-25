@@ -140,23 +140,33 @@ class Product:
         self.tags = tags_str
 
     def set_g_age_group(self, g_age_group):
-        log_str = 'setting g_age_group "%s" for "%s"' %(g_age_group, self.handle)
-        bad_log_str = 'Attempted to set product %s to malformed g_age_group' % (self.handle)
         if g_age_group.lower() in googleDefs.age_group:
+            log_str = 'setting g_age_group "%s" for "%s"' %(g_age_group, self.handle)
             logging.debug(log_str)
+
             self.g_age_group = g_age_group
         else:
-            print("asdfasdfasdf")
+            bad_log_str = 'Attempted to set product %s to malformed g_age_group' % (self.handle)
             logging.warn(bad_log_str)
 
     def set_g_gender(self, g_gender):
-        log_str = 'setting g_gender "%s" for "%s"' %(g_gender, self.handle)
-        bad_log_str = 'Attempted to set product %s to malformed g_gender' % (self.handle)
         if g_gender.lower() in googleDefs.gender:
+            log_str = 'setting g_gender "%s" for "%s"' %(g_gender, self.handle)
             logging.debug(log_str)
+
             self.g_gender = g_gender
         else:
-            print("asdfasdfasdf")
+            bad_log_str = 'Attempted to set product %s to malformed g_gender' % (self.handle)
+            logging.warn(bad_log_str)
+
+    def set_g_product_category(self, g_product_category, feed):
+        if feed.verify_g_product_category(g_product_category):
+            log_str = 'setting g_product_category "%s" for "%s"' %(g_product_category, self.handle)
+            logging.debug(log_str)
+
+            self.g_product_category = g_product_category
+        else:
+            bad_log_str = 'Attempted to set product %s to malformed g_product_category' % (self.handle)
             logging.warn(bad_log_str)
 
     def has_tag(self, tag):

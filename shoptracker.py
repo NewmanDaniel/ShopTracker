@@ -823,8 +823,6 @@ def set_default_g_product_category(g_product_category):
             cur = con.cursor()
             products = Product.get_all_products()
             print('Setting default g_product_category for all products to %s...' %(g_product_category))
-            logging.info('- Setting default g_product_category for all products to "%s"' %(g_product_category))
-            for product in products:
                 product.set_g_product_category(g_product_category)
                 product.save(cur)
         else:

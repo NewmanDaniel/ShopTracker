@@ -816,6 +816,20 @@ def set_default_g_gender(g_gender):
             logging.warn('Attempted to set default g_gender but g_gender was malformed')
         con.commit()
 
+
+def set_default_g_product_category(g_product_category):
+    with DB() as con:
+        if GoogleFeed.verify_g_product_category(g_product_category):
+            cur = con.cursor()
+            products = Product.get_all_products()
+            print('Setting default g_product_category for all products to %s...' %(g_product_category))
+            logging.info('- Setting default g_product_category for all products to "%s"' %(g_product_category))
+            for product in products:
+                product.set_g_product_category(g_product_category)
+                product.save(cur)
+        else:
+            logging.warn('Attempted to set default g_product_category but g_product_category was malformed.')
+        con.commit()
 # --
 def print_error():
     """

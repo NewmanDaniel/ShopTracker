@@ -141,31 +141,23 @@ class Product:
 
     def set_g_age_group(self, g_age_group):
         log_str = 'setting g_age_group "%s" for "%s"' %(g_age_group, self.handle)
-        if log_str:
-            logging.debug(log_str)
-
+        bad_log_str = 'Attempted to set product %s to malformed g_age_group' % (self.handle)
         if g_age_group.lower() in googleDefs.age_group:
+            logging.debug(log_str)
             self.g_age_group = g_age_group
+        else:
+            print("asdfasdfasdf")
+            logging.warn(bad_log_str)
 
     def set_g_gender(self, g_gender):
         log_str = 'setting g_gender "%s" for "%s"' %(g_gender, self.handle)
-        if log_str:
-            logging.debug(log_str)
-
+        bad_log_str = 'Attempted to set product %s to malformed g_gender' % (self.handle)
         if g_gender.lower() in googleDefs.gender:
-            self.g_gender = g_gender
-
-    def set_g_product_category(self, g_product_category, feed):
-        log_str = 'setting g_product_category "%s" for "%s"' %(g_product_category, self.handle)
-        bad_log_str = 'Attempted to set product %s to malformed g_product_category "%s"' % (self.handle, g_product_category)
-        if feed.verify_g_product_category(g_product_category):
-            self.g_product_category = g_product_category
             logging.debug(log_str)
+            self.g_gender = g_gender
         else:
+            print("asdfasdfasdf")
             logging.warn(bad_log_str)
-
-
-
 
     def has_tag(self, tag):
         tags = [tag.lower() for tag in self.get_tags()]
@@ -784,33 +776,35 @@ def process_colors_for_all_products():
                 product.save(cur)
         con.commit()
 
-def set_default_g_age_group(g_age_group): 
-    logging.info('- Setting default age group for all products to "%s"' %(g_age_group))
-    print('Setting default age group for all products to %s...' %(g_age_group))
-
-    products = Product.get_all_products()
+def set_default_g_age_group(g_age_group):
     with DB() as con:
         cur = con.cursor()
         if g_age_group.lower() in googleDefs.age_group:
+            products = Product.get_all_products()
+            print('Setting default g_age_group for all products to %s...' %(g_age_group))
+            logging.info('- Setting default g_age_group for all products to "%s"' %(g_age_group))
             for product in products:
                 #print("Saving g_age_group %s for: %s"%(g_age_group, product))
                 product.set_g_age_group(g_age_group)
                 product.save(cur)
+        else:
+            logging.warn('Attempted to set default g_age_group but g_age_group was malformed')
         con.commit()
 
 
-def set_default_g_gender(g_gender): 
-    logging.info('- Setting default gender for all products to "%s"' %(g_gender))
-    print('Setting default gender for all products to %s...' %(g_gender))
-
-    products = Product.get_all_products()
+def set_default_g_gender(g_gender):
     with DB() as con:
         cur = con.cursor()
         if g_gender.lower() in googleDefs.gender:
+            products = Product.get_all_products()
+            print('Setting default g_gender for all products to %s...' %(g_gender))
+            logging.info('- Setting default g_gender for all products to "%s"' %(g_gender))
             for product in products:
                 #print("Saving g_gender %s for %s"%(g_gender, product))
                 product.set_g_gender(g_gender)
                 product.save(cur)
+        else:
+            logging.warn('Attempted to set default g_gender but g_gender was malformed')
         con.commit()
 
 # --

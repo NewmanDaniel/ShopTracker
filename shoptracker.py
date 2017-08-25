@@ -18,9 +18,63 @@ import googleDefs
 logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
 
 class GoogleFeed:
+    # Current mappings of required google feed fields. Fields that aren't implemented fully yet marked as NONE
+    mappings = {
+        "id" : "sku",
+        "title" : "title",
+        "description" :"desc",
+        "link" : "url",
+        "image_link": "img_url",
+        "availability" : "NONE",
+        "google_product_category" : "g_product_category",
+        "brand" : "NONE",
+        "MPN" : "NONE",
+        "condition" : "NONE",
+        "age_group" : "g_age_group",
+        "color" : "g_color",
+        "gender" : "g_gender",
+    }
+
+    def __tmp_handle_none_defaults(self, mapping, product):
+        "to be removed later, for handling none values"
+        tmp_none_defaults = {
+            "availability" : "available",
+            "brand" : "eztuxedo",
+            "MPN" : product.sku,
+            "condition" : "new",
+        }
+
+        for key, value in tmp_none_defaults.items():
+            if key == mapping:
+                return value
+
+
     def __init__(self, collections):
-        self.feed_str = ''
+        logging.debug('Google feed instantiated')
         self.collections = collections
+        self.products = []
+        self.feed_str = ''
+        self.added_product_handles = []
+
+    def export_tsv(self, filename):
+        "exports tsv to a file"
+        with open(filename, 'w') as tsv_file:
+            tsv_file.write(self.feed_str)
+
+
+    def build_feed(self):
+        "Builds a google feed"
+
+        # Add products to the feed
+        for collection in self.collections:
+            for product in collection.products:
+                if product.handle not in self.added_product_handles:
+                    self.__add_product(product)
+                else:
+                    logging.warn('Skipped product %s: already in feed' %(product))
+
+        # Create feed TSV
+        self.__build_tsv()
 
     def verify_g_product_category(g_product_category):
         "Verifies that a category is in googleDefs.google_product_category"
@@ -28,6 +82,83 @@ class GoogleFeed:
             return True
         else:
             return False
+
+    def __verify_product(self, product):
+        "Verifies a product can be added to a Google Feed"
+        can_be_added = True
+        failing_condition = None
+
+        conditions = {
+            'product_not_duplicate' : (product.handle not in self.added_product_handles),
+            'product_has_id' : ( (product.sku and product.sku != '')),
+            'product_has_title' : (product.title and product.title != ''),
+            'product_has_description' : (product.desc and product.desc != ''),
+            'product_has_link' : (product.url and product.url != ''),
+            'product_has_image_link' : (product.img_url and product.img_url != ''),
+            #'product_has_availibility' : (product.img_url and product.img_url != ''),
+            'product_has_price' : (product.price and product.price != '') ,
+            #'product_has_brand' : (product.brand and product.brand != '') ,
+        }
+
+        for condition_name, condition in conditions.items():
+            if not condition:
+                failing_condition = condition_name
+                can_be_added = False
+                break
+
+        if can_be_added:
+            return True
+        else:
+            logging.warn('Product %s failed to add due to failing condition %s' %(product, failing_condition))
+            return False
+
+    def __set_defaults(self, **kwargs):
+        "Used to set default values NONE mappings"
+
+
+    def __format_tsv_description(self, description):
+            description = BeautifulSoup(description, 'lxml')
+            description = description.text
+            description = '"%s"' % ( description)
+            return description
+
+    def __format_tsv_mapping(self, mapping, attribute, product):
+        "Returns a properly formatted str representing the attribute of the respective mapping"
+        if mapping == "description":
+            return self.__format_tsv_description(product.desc)
+        elif attribute == "NONE":
+            return self.__tmp_handle_none_defaults(mapping, product)
+        else:
+            return product.__getattribute__(attribute)
+
+    def __build_tsv(self):
+        # Build tsv_header
+        tsv_header = ''
+        for i, mapping in enumerate(self.mappings):
+            if i < len(self.mappings) - 1:
+                tsv_header += "%s\t" % (mapping)
+            else:
+                tsv_header += "%s\n" % (mapping)
+
+        # Build tsv_body
+        tsv_body = ''
+        for product in self.products:
+            for i, unpacked in enumerate(self.mappings.items()):
+                mapping = unpacked[0]; attribute = unpacked[1]
+                attribute = attribute.replace("\t","") # get rid of tabs if they have it
+                if i < len(self.mappings) - 1:
+                    tsv_body += "%s\t" % (self.__format_tsv_mapping(mapping, attribute, product))
+                else:
+                    tsv_body += "%s\n" % (self.__format_tsv_mapping(mapping, attribute, product))
+        self.feed_str = tsv_header + tsv_body
+
+
+
+    def __add_product(self, product):
+        if self.__verify_product(product):
+            logging.debug('Adding product %s to the feed' %(product))
+            self.added_product_handles.append(product.handle)
+            self.products.append(product)
 
 class DB:
     """

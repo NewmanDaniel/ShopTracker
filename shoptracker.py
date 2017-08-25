@@ -6,21 +6,31 @@ Allows user to import products from shopify into a mysql database
 import logging, sys
 import io
 import re
-import MySQLdb as mysql
 import csv
-import googleDefs
 
+import MySQLdb as mysql
 from bs4 import BeautifulSoup
-# -- #
+
 import config
+import googleDefs
 
 # Instantiate logger
 logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
 
 class GoogleFeed:
     def __init__(self, collections):
-        self.feed_str = []
-        self.collections = []
+        self.feed_str = ''
+        self.collections = collections
+        self.google_product_categories = googleDefs.google_product_category
+
+    def verify_g_product_category(self, g_product_category):
+        "Verifies that a category is in googleDefs.google_product_category"
+        if g_product_category in self.google_product_categories:
+            return True
+        else:
+            return False
+
+
 
 class DB:
     """

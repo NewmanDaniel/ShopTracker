@@ -21,11 +21,10 @@ class GoogleFeed:
     def __init__(self, collections):
         self.feed_str = ''
         self.collections = collections
-        self.google_product_categories = googleDefs.google_product_category
 
-    def verify_g_product_category(self, g_product_category):
+    def verify_g_product_category(g_product_category):
         "Verifies that a category is in googleDefs.google_product_category"
-        if g_product_category in self.google_product_categories:
+        if g_product_category in googleDefs.google_product_category:
             return True
         else:
             return False
@@ -159,8 +158,8 @@ class Product:
             bad_log_str = 'Attempted to set product %s to malformed g_gender' % (self.handle)
             logging.warn(bad_log_str)
 
-    def set_g_product_category(self, g_product_category, feed):
-        if feed.verify_g_product_category(g_product_category):
+    def set_g_product_category(self, g_product_category):
+        if GoogleFeed.verify_g_product_category(g_product_category):
             log_str = 'setting g_product_category "%s" for "%s"' %(g_product_category, self.handle)
             logging.debug(log_str)
 

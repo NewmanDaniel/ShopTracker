@@ -3,6 +3,7 @@
 """
 Allows user to import products from shopify into a mysql database
 """
+import codecs
 import logging, sys
 import io
 import re
@@ -16,6 +17,183 @@ import googleDefs
 
 # Instantiate logger
 logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
+
+class ShopifyCSV:
+    mappings = {
+        "Handle" : "handle",
+        "Title" : "title",
+        "Body (HTML)" : "desc",
+        "Vendor" : "vendor",
+        "Type" : "NONE",
+        "Tags" : "tags",
+        "Published" : "NONE",
+        "Option1 Name" : "NONE", # NOTE: For use with datafeedwatch,
+        "Option1 Value" : "g_color",
+        "Option2 Name" : "NONE",
+        "Option2 Value" : "NONE",
+        "Option3 Name" : "NONE",
+        "Option3 Value" : "NONE",
+        "Variant SKU" : "sku",
+        "Variant Grams" : "NONE",
+        "Variant Inventory Tracker" : "NONE",
+        "Variant Inventory Qty" : "NONE",
+        "Variant Inventory Policy" : "NONE",
+        "Variant Fulfillment Service" : "NONE",
+        "Variant Price" : "price",
+        "Variant Compare At Price" : "NONE",
+        "Variant Requires Shipping" : "NONE",
+        "Variant Taxable" : "NONE",
+        "Variant Barcode" : "NONE",
+        "Image Src" : "img_url",
+        "Image Alt Text" : "NONE",
+        "Gift Card" : "NONE",
+        "Google Shopping / MPN" : "NONE",
+        "Google Shopping / Age Group" : "g_age_group",
+        "Google Shopping / Gender" : "g_gender",
+        "Google Shopping / Google Product Category" : "g_product_category",
+        "SEO Title" : "NONE",
+        "SEO Description" : "NONE",
+        "Google Shopping / AdWords Grouping" : "NONE",
+        "Google Shopping / AdWords Labels" : "NONE",
+        "Google Shopping / Condition" : "NONE",
+        "Google Shopping / Custom Product" : "NONE",
+        "Google Shopping / Custom Label 0" : "NONE",
+        "Google Shopping / Custom Label 1" : "NONE",
+        "Google Shopping / Custom Label 2" : "NONE",
+        "Google Shopping / Custom Label 3" : "NONE",
+        "Google Shopping / Custom Label 4" : "NONE",
+        "Variant Image" : "NONE",
+        "Variant Weight Unit" : "NONE",
+    }
+
+    def __tmp_handle_none_defaults(self, mapping, product):
+        "to be removed later, for handling none values"
+        tmp_none_defaults = {
+            "Google Shopping / MPN" : product.sku,
+            "Google Shopping / Condition" : "new",
+        }
+
+        for key, value in tmp_none_defaults.items():
+            if key == mapping:
+                return value
+
+
+    def __init__(self, collections):
+        logging.debug('Google shopify_csv instantiated')
+        self.collections = collections
+        self.products = []
+        self.shopify_csv_str = ''
+        self.added_product_handles = []
+
+    def export_csv(self, filename):
+        "exports csv to a file"
+        with codecs.open(filename, 'w', "utf-8-sig") as csv_file:
+            csv_file.write(self.shopify_csv_str)
+
+    def build_shopify_csv(self):
+        "Builds a google shopify_csv"
+
+        # Add products to the shopify_csv
+        for collection in self.collections:
+            for product in collection.products:
+                if product.handle not in self.added_product_handles:
+                    self.__add_product(product)
+                else:
+                    logging.warn('Skipped product %s: already in shopify_csv' %(product))
+
+        # Create shopify_csv CSV
+        self.__build_csv()
+
+    def verify_g_product_category(g_product_category):
+        "Verifies that a category is in googleDefs.google_product_category"
+        if g_product_category in googleDefs.google_product_category:
+            return True
+        else:
+            return False
+
+    def __verify_product(self, product):
+        "Verifies a product can be added to a shopify_Csv"
+        can_be_added = True
+        failing_condition = None
+
+        conditions = {
+            'product_not_duplicate' : (product.handle not in self.added_product_handles),
+            'product_has_id' : ( (product.sku and product.sku != '')),
+            'product_has_title' : (product.title and product.title != ''),
+            'product_has_description' : (product.desc and product.desc != ''),
+            'product_has_link' : (product.url and product.url != ''),
+            'product_has_image_link' : (product.img_url and product.img_url != ''),
+            #'product_has_availibility' : (product.img_url and product.img_url != ''),
+            'product_has_price' : (product.price and product.price != '') ,
+            #'product_has_brand' : (product.brand and product.brand != '') ,
+        }
+
+        for condition_name, condition in conditions.items():
+            if not condition:
+                failing_condition = condition_name
+                can_be_added = False
+                break
+
+        if can_be_added:
+            return True
+        else:
+            logging.warn('Product %s failed to add due to failing condition %s' %(product, failing_condition))
+            return False
+
+    def __set_defaults(self, **kwargs):
+        "Used to set default values NONE mappings"
+
+    def __format_csv_tags(self, tags):
+            tags = '"%s"' % (tags)
+            return tags
+
+    def __format_csv_description(self, description):
+            description = BeautifulSoup(description, 'lxml')
+            description = description.text
+            description = '"%s"' % ( description)
+            return description
+
+    def __format_csv_mapping(self, mapping, attribute, product):
+        "Returns a properly formatted str representing the attribute of the respective mapping"
+        if mapping == "Body (HTML)":
+            return self.__format_csv_description(product.desc)
+        if mapping == "Tags":
+            return self.__format_csv_tags(product.tags)
+        if mapping == "Option1 Name":
+            return "Google Shopping / Colors"
+        elif attribute == "NONE":
+            return self.__tmp_handle_none_defaults(mapping, product)
+        else:
+            return product.__getattribute__(attribute)
+
+    def __build_csv(self):
+        # Build csv_header
+        csv_header = ''
+        for i, mapping in enumerate(self.mappings):
+            if i < len(self.mappings) - 1:
+                csv_header += "%s, " % (mapping)
+            else:
+                csv_header += "%s\n" % (mapping)
+
+        # Build csv_body
+        csv_body = ''
+        for product in self.products:
+            for i, unpacked in enumerate(self.mappings.items()):
+                mapping = unpacked[0]; attribute = unpacked[1]
+                attribute = attribute.replace(", ","") # get rid of tabs if they have it
+                if i < len(self.mappings) - 1:
+                    csv_body += "%s, " % (self.__format_csv_mapping(mapping, attribute, product))
+                else:
+                    csv_body += "%s\n" % (self.__format_csv_mapping(mapping, attribute, product))
+        self.shopify_csv_str = csv_header + csv_body
+
+
+
+    def __add_product(self, product):
+        if self.__verify_product(product):
+            logging.debug('Adding product %s to the shopify_csv' %(product))
+            self.added_product_handles.append(product.handle)
+            self.products.append(product)
 
 class GoogleFeed:
     # Current mappings of required google feed fields. Fields that aren't implemented fully yet marked as NONE
@@ -113,6 +291,7 @@ class GoogleFeed:
             return False
 
     def __set_defaults(self, **kwargs):
+        pass
         "Used to set default values NONE mappings"
 
 

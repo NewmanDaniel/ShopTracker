@@ -87,11 +87,15 @@ class ShopifyCSV:
 
     def export_csv(self, filename):
         "exports csv to a file"
+        logging.info('- Exporting Shopify CSV to "%s"'% (filename))
+        print('Exporting Shopify CSV to "%s"...'% (filename)) 
         with codecs.open(filename, 'w', "utf-8-sig") as csv_file:
             csv_file.write(self.shopify_csv_str)
 
     def build_shopify_csv(self):
         "Builds a google shopify_csv"
+        logging.info('- Building Shopify CSV')
+        print('Building Shopify CSV...')
 
         # Add products to the shopify_csv
         for collection in self.collections:
@@ -236,12 +240,16 @@ class GoogleFeed:
 
     def export_tsv(self, filename):
         "exports tsv to a file"
+        logging.info('- Exporting Google Feed to "%s"'% (filename))
+        print('Exporting Google feed to "%s"...'% (filename))
         with open(filename, 'w') as tsv_file:
             tsv_file.write(self.feed_str)
 
 
     def build_feed(self):
         "Builds a google feed"
+        logging.info('- Building Google Feed')
+        print('Building Google Feed...')
 
         # Add products to the feed
         for collection in self.collections:

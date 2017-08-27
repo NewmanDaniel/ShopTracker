@@ -27,8 +27,8 @@ class ShopifyCSV:
         "Type" : "NONE",
         "Tags" : "tags",
         "Published" : "NONE",
-        "Option1 Name" : "NONE", # NOTE: For use with datafeedwatch,
-        "Option1 Value" : "g_color",
+        "Option1 Name" : "NONE", # NOTE: For use with datafeedwatch, subject to change
+        "Option1 Value" : "g_color", # NOTE: For use with datafeedwatch, subject to change
         "Option2 Name" : "NONE",
         "Option2 Value" : "NONE",
         "Option3 Name" : "NONE",
@@ -71,11 +71,15 @@ class ShopifyCSV:
         tmp_none_defaults = {
             "Google Shopping / MPN" : product.sku,
             "Google Shopping / Condition" : "new",
+            "Published" : "true",
         }
 
         for key, value in tmp_none_defaults.items():
             if key == mapping:
                 return value
+
+        # If you can't find anything, return nothing
+        return ''
 
 
     def __init__(self, collections):
@@ -88,8 +92,8 @@ class ShopifyCSV:
     def export_csv(self, filename):
         "exports csv to a file"
         logging.info('- Exporting Shopify CSV to "%s"'% (filename))
-        print('Exporting Shopify CSV to "%s"...'% (filename)) 
-        with codecs.open(filename, 'w', "utf-8-sig") as csv_file:
+        print('Exporting Shopify CSV to "%s"...'% (filename))
+        with codecs.open(filename, 'w', "utf-8") as csv_file:
             csv_file.write(self.shopify_csv_str)
 
     def build_shopify_csv(self):
@@ -125,7 +129,6 @@ class ShopifyCSV:
             'product_has_id' : ( (product.sku and product.sku != '')),
             'product_has_title' : (product.title and product.title != ''),
             'product_has_description' : (product.desc and product.desc != ''),
-            'product_has_link' : (product.url and product.url != ''),
             'product_has_image_link' : (product.img_url and product.img_url != ''),
             #'product_has_availibility' : (product.img_url and product.img_url != ''),
             'product_has_price' : (product.price and product.price != '') ,
@@ -148,17 +151,21 @@ class ShopifyCSV:
         "Used to set default values NONE mappings"
 
     def __format_csv_tags(self, tags):
+            # escape double quotes
+            tags = tags.replace('"','""')
             tags = '"%s"' % (tags)
             return tags
 
     def __format_csv_description(self, description):
-            description = BeautifulSoup(description, 'lxml')
-            description = description.text
+            # escape double quotes
+            description = description.replace('"','""')
             description = '"%s"' % ( description)
             return description
 
     def __format_csv_mapping(self, mapping, attribute, product):
         "Returns a properly formatted str representing the attribute of the respective mapping"
+        if mapping == "Title":
+            return self.__format_csv_description(product.title)
         if mapping == "Body (HTML)":
             return self.__format_csv_description(product.desc)
         if mapping == "Tags":
@@ -175,7 +182,7 @@ class ShopifyCSV:
         csv_header = ''
         for i, mapping in enumerate(self.mappings):
             if i < len(self.mappings) - 1:
-                csv_header += "%s, " % (mapping)
+                csv_header += "%s," % (mapping)
             else:
                 csv_header += "%s\n" % (mapping)
 
@@ -186,7 +193,7 @@ class ShopifyCSV:
                 mapping = unpacked[0]; attribute = unpacked[1]
                 attribute = attribute.replace(", ","") # get rid of tabs if they have it
                 if i < len(self.mappings) - 1:
-                    csv_body += "%s, " % (self.__format_csv_mapping(mapping, attribute, product))
+                    csv_body += "%s," % (self.__format_csv_mapping(mapping, attribute, product))
                 else:
                     csv_body += "%s\n" % (self.__format_csv_mapping(mapping, attribute, product))
         self.shopify_csv_str = csv_header + csv_body
@@ -1072,6 +1079,11 @@ def import_csv_from_shopify(csv_file):
         for row in reader:
             isPublished = row["Published"]
             if isPublished == 'true':
+                # Check if GShopping colors exists, and if so, grab it
+                colors = ''
+                if row["Option1 Name"] == 'Google Shopping / Colors':
+                    colors = row["Option1 Value"]
+
                 logging.debug('Importing product with handle %s from %s' % (row["Handle"], csv_file.name))
                 p_list.append(Product(
                     row["Title"],
@@ -1081,7 +1093,14 @@ def import_csv_from_shopify(csv_file):
                     vendor=row["Vendor"],
                     tags=row["Tags"],
                     img_url=row["Image Src"],
-                    sku=row["Variant SKU"]))
+                    sku=row["Variant SKU"],
+                    # -- #
+                    g_age_group=row["Google Shopping / Age Group"],
+                    g_color=colors,
+                    g_product_category=row["Google Shopping / Google Product Category"],
+                    g_gender=row["Google Shopping / Gender"],
+
+                    ))
             elif isPublished == 'false':
                 logging.debug('Skipped %s, pub value %s' % (row["Handle"], row["Published"]))
             else:

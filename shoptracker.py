@@ -172,6 +172,10 @@ class ShopifyCSV:
             return self.__format_csv_tags(product.tags)
         if mapping == "Option1 Name":
             return "GOOGLE_SHOPPING_COLORS"
+        if mapping == "Variant Fulfillment Service":
+            return "manual"
+        if mapping == "Variant Inventory Policy":
+            return "continue"
         elif attribute == "NONE":
             return self.__tmp_handle_none_defaults(mapping, product)
         else:

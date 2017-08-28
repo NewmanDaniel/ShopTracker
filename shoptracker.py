@@ -171,7 +171,7 @@ class ShopifyCSV:
         if mapping == "Tags":
             return self.__format_csv_tags(product.tags)
         if mapping == "Option1 Name":
-            return "Google Shopping / Colors"
+            return "GOOGLE_SHOPPING_COLORS"
         elif attribute == "NONE":
             return self.__tmp_handle_none_defaults(mapping, product)
         else:
@@ -1081,7 +1081,7 @@ def import_csv_from_shopify(csv_file):
             if isPublished == 'true':
                 # Check if GShopping colors exists, and if so, grab it
                 colors = ''
-                if row["Option1 Name"] == 'Google Shopping / Colors':
+                if row["Option1 Name"] == 'GOOGLE_SHOPPING_COLORS':
                     colors = row["Option1 Value"]
 
                 logging.debug('Importing product with handle %s from %s' % (row["Handle"], csv_file.name))

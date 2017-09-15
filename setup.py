@@ -61,7 +61,7 @@ def main():
         # Create attributes table, each row consist of an attribute and its associated options
         cur.execute("""
         CREATE TABLE `attributes`  (
-            `attributes_id` int(10) unsigned NOT NULL,
+            `attributes_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
             `options_id` int(10) unsigned NOT NULL,
             `attributes_title` varchar(512) NOT NULL DEFAULT '',
             PRIMARY KEY (`attributes_id`,`options_id`),

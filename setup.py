@@ -11,11 +11,11 @@ def main():
 
         # Drop tables
         cur.execute("DROP TABLE IF EXISTS `products_collections`;")
+        cur.execute("DROP TABLE IF EXISTS `options_products`;")
         cur.execute("DROP TABLE IF EXISTS `products`; ")
         cur.execute("DROP TABLE IF EXISTS `collections`;")
-        cur.execute("DROP TABLE IF EXISTS `options`;")
         cur.execute("DROP TABLE IF EXISTS `attributes`;")
-        cur.execute("DROP TABLE IF EXISTS `options_products`;")
+        cur.execute("DROP TABLE IF EXISTS `options`;")
 
         # Create products table
         cur.execute("""

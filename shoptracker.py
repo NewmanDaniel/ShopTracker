@@ -18,6 +18,98 @@ import googleDefs
 # Instantiate logger
 logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
 
+class Option:
+    attributes = []
+
+    def __init__(self, title, attributes):
+        logging.debug('Option instantiated')
+        self.title = title
+        self.attributes = attributes
+        self.handle = Product.get_handle(title)
+
+    def __get_ids_matching_handle(self):
+        with DB() as con:
+            cur = con.cursor()
+            statement = 'select options_id from options where options_handle = "%s"' %(self.handle)
+            cur.execute(statement)
+            #rows = cur.fetchall()
+            ids = [int(row[0]) for row in cur.fetchall()]
+            return ids
+
+    def __get_option_insert_statement(self):
+        insert_statement = 'INSERT INTO options (options_handle, options_title) VALUES ("%s", "%s");' %(self.handle, self.title)
+        return insert_statement
+
+    def __get_attribute_insert_statement(self, option_id, attribute_title):
+        insert_statement = 'INSERT INTO attributes (options_id, attributes_title) VALUES ("%s", "%s");' %(option_id, attribute_title)
+        return insert_statement
+
+    def print(self):
+        print(self.title)
+        for attribute in self.attributes:
+            print("> %s" %(attribute))
+
+
+    def get_option(id):
+        "Returns an option object from the database given an id"
+        with DB() as con:
+            try:
+                cur = con.cursor()
+                option_id_statement = 'select options_title from options where options_id = "%s"' %(id)
+                attributes_id_statement = 'select attributes_title from attributes where options_id = "%s"' %(id)
+
+                cur.execute(option_id_statement)
+                option_title = cur.fetchall()[0][0]
+                if option_title == '':
+                    raise ValueError("Option ID '%s' doesn't exist in DB")
+
+                cur.execute(attributes_id_statement)
+                attributes = [str(attribute[0]) for attribute in cur.fetchall()]
+
+                option = Option(option_title, attributes)
+                return option
+            except mysql.Error as e:
+                print("Problem while saving an option to database")
+                #print("Error %d: %s" % (e.args[0], e.args[1]))
+                print(e)
+                print(cur)
+                raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s))
+
+    def __identical_attribute_exists(self):
+        "Returns true if an option with an identical title and identical attributes already exists in DB"
+        options_with_identical_title = [Option.get_option(id) for id in self.__get_ids_matching_handle()]
+        identical_attributes_exists = False
+        if options_with_identical_title:
+            for option in options_with_identical_title:
+                if sorted(self.attributes) == sorted(option.attributes):
+                    identical_attributes_exists = True
+                    return True
+                    break
+        return False
+
+    def save(self, cur):
+        try:
+            if not self.__identical_attribute_exists():
+                # Insert option into db
+                option_s = self.__get_option_insert_statement()
+                cur.execute(option_s)
+                option_id = cur.lastrowid
+                logging.debug('inserting option "%s" in DB' %(self.handle))
+
+                # Insert attributes into db, and associate them with the option
+                for attribute in self.attributes:
+                    logging.debug('associating attribute "%s" to option "%s"  in DB' %(attribute, self.handle))
+                    option_a = self.__get_attribute_insert_statement(option_id, attribute)
+                    cur.execute(option_a)
+            else:
+                logging.debug('Not inserting "%s", option with identical attributes exists in db' %(self.handle))
+        except mysql.Error as e:
+            print("Problem while saving an option to database")
+            #print("Error %d: %s" % (e.args[0], e.args[1]))
+            print(e)
+            print(cur)
+            raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s)) 
+
 class ShopifyCSV:
     mappings = {
         "Handle" : "handle",

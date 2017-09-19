@@ -21,18 +21,18 @@ logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DE
 class Option:
     attributes = []
 
-    def __init__(self, title, attributes):
+    def __init__(self, title, attributes, **kwargs):
         logging.debug('Option instantiated')
         self.title = title
         self.attributes = attributes
         self.handle = Product.get_handle(title)
+        self.id = kwargs.get('id', '')
 
     def __get_ids_matching_handle(self):
         with DB() as con:
             cur = con.cursor()
             statement = 'select options_id from options where options_handle = "%s"' %(self.handle)
             cur.execute(statement)
-            #rows = cur.fetchall()
             ids = [int(row[0]) for row in cur.fetchall()]
             return ids
 
@@ -66,7 +66,7 @@ class Option:
                 cur.execute(attributes_id_statement)
                 attributes = [str(attribute[0]) for attribute in cur.fetchall()]
 
-                option = Option(option_title, attributes)
+                option = Option(option_title, attributes, id=id)
                 return option
             except mysql.Error as e:
                 print("Problem while saving an option to database")
@@ -87,6 +87,56 @@ class Option:
                     break
         return False
 
+    def __get_id(self):
+        "Returns true if an option with an identical title and identical attributes already exists in DB"
+        options = []
+        for id in self.__get_ids_matching_handle():
+            option = Option.get_option(id)
+            option_id = id
+            options.append((option, option_id))
+
+        for option in options:
+            if sorted(self.attributes) == sorted(option[0].attributes):
+                return option[1]
+
+    def associate_with_product(self, product_handle):
+        with DB() as con:
+            try:
+                # check if id is set on the object, otherwise use __get_id to retrieve it from the database
+                if hasattr(self, "id") and self.id != '':
+                    option_id = self.id
+                else:
+                    option_id = self.__get_id()
+
+                # Get product
+                product = Product.get_product(product_handle)
+                products_id = product.id
+
+                # Check if option is already associated with the product
+                product_already_has_option = False
+                product_options = product.get_options()
+                for product_option in product_options:
+                    if product_option.id == option_id:
+                        product_already_has_option = True
+                        break
+
+                if option_id and products_id and not product_already_has_option:
+                    cur = con.cursor()
+                    o_p_statement = 'insert into options_products (options_id, products_id) values (%d, %d)' %(option_id, products_id)
+                    cur.execute(o_p_statement)
+                    con.commit()
+                    logging.debug('Associating option "%s: %s" to product "%s"' %(option_id, self.handle, product_handle))
+                elif product_already_has_option:
+                    logging.debug('Option "%s: %s" already associated to product "%s", skipping' %(option_id, self.handle, product_handle))
+                else:
+                    raise ValueError("An error occured while associating option with product")
+            except mysql.Error as e:
+                print("Problem while saving an option to database")
+                #print("Error %d: %s" % (e.args[0], e.args[1]))
+                print(e)
+                print(cur)
+                raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s))
+
     def save(self, cur):
         try:
             if not self.__identical_attribute_exists():
@@ -94,6 +144,8 @@ class Option:
                 option_s = self.__get_option_insert_statement()
                 cur.execute(option_s)
                 option_id = cur.lastrowid
+                # Set id on object, in case associate_with_product is invoked later
+                self.id = option_id
                 logging.debug('inserting option "%s" in DB' %(self.handle))
 
                 # Insert attributes into db, and associate them with the option
@@ -108,7 +160,7 @@ class Option:
             #print("Error %d: %s" % (e.args[0], e.args[1]))
             print(e)
             print(cur)
-            raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s)) 
+            raise ValueError('SQL ERROR: %s, \nstatement: %s' %(e, s))
 
 class ShopifyCSV:
     mappings = {
@@ -532,6 +584,17 @@ class Product:
             else:
                 return False
 
+    def get_options(self):
+        "Returns options associated with the product"
+        with DB() as con:
+            if not hasattr(self, 'id'):
+                raise ValueError("Product object doesn't have an associated ID")
+            cur = con.cursor()
+            statement = "select options_id from options_products where products_id = %d" %(self.id)
+            cur.execute(statement)
+            option_ids = [row[0] for row in cur.fetchall()]
+            options = [Option.get_option(option_id) for option_id in option_ids]
+            return options
 
     def __repr__(self):
         return self.handle
@@ -693,7 +756,7 @@ class Product:
 
             for p_attribute, p_column in Product.fields.items():
                 if p_column in t_columns:
-                    kwargs[p_attribute] = result[p_column] 
+                    kwargs[p_attribute] = result[p_column]
 
             return Product(**kwargs)
 

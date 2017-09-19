@@ -10,3 +10,10 @@ db_password = 'sh0ptr4ck3r'
 
 # Configure login file
 logging_file = 'log.txt'
+
+# configure domain name
+domain_name = 'ez-tuxedo.com'
+
+# path to phantomjs
+phantomjs_path = 'phantomjs'
+

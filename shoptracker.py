@@ -6,17 +6,71 @@ Allows user to import products from shopify into a mysql database
 import codecs
 import logging, sys
 import io
+import os.path
 import re
 import csv
 
 import MySQLdb as mysql
+
 from bs4 import BeautifulSoup
+from selenium import webdriver
 
 import config
 import googleDefs
 
 # Instantiate logger
 logging.basicConfig(filename=config.logging_file, filemode='w', level=logging.DEBUG)
+
+class BoldOptionScraper:
+    """
+    Scrapes bold product options from a product page (only does dropdowns for now)
+    """
+    def __init__(self, product_handle, product_url):
+        self.product_handle = product_handle
+        self.product_url = product_url
+
+        self.options = []
+        self.page_source = ''
+        self.product_page_source_file = 'cache/product_pages/%s.html' %(product_handle)
+
+        self.__get_page_source()
+        self.__get_options_from_page_source()
+
+
+    def __get_page_source(self):
+        "Attempts to retrieve page_source from cache, otherwise page_source is downloaded and stored in cache"
+        if os.path.isfile(self.product_page_source_file):
+            self.page_source = open(self.product_page_source_file, 'r')
+        else:
+            # Create path if it doesn't exist.
+            if not os.path.exists(os.path.dirname(self.product_page_source_file)):
+                try:
+                    os.makedirs(os.path.dirname(self.product_page_source_file))
+                except OSError as e:
+                    if e.errno != errno.EEXIST:
+                        raise
+
+            # initiate the browser, grab the page, and store it
+            browser = webdriver.PhantomJS('phantomjs')
+            browser.get(self.product_url)
+            self.page_source = browser.page_source
+            page_source_file = open(self.product_page_source_file, 'w+')
+            page_source_file.write(self.page_source)
+
+    def __get_options_from_page_source(self):
+        soup = BeautifulSoup(self.page_source, "html.parser")
+        soup_bold_option_dropdown = soup.find_all('div', {'class':'bold_option_dropdown'})
+        for item in soup_bold_option_dropdown:
+            # Grab the title, remove the asterisk since it's not needed
+            option_title = item.find('span', {'class':'bold_option_title'}).text.replace('*','').strip()
+            # Grab the attributes, remove the first option since it's not needed
+            attribute_elements = item.find_all('option')
+            attributes = [attribute.text.strip() for attribute in attribute_elements]
+            del attributes[0]
+            self.options.append((option_title, attributes))
+
+    def get_options(self):
+        return self.options
 
 class Option:
     attributes = []

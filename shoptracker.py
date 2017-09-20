@@ -25,22 +25,65 @@ class BoldOptionScraper:
     """
     Scrapes bold product options from a product page (only does dropdowns for now)
     """
-    def __init__(self, product_handle, product_url):
+    def __init__(self, product_handle, product_url, **kwargs):
         self.product_handle = product_handle
         self.product_url = product_url
 
         self.options = []
         self.page_source = ''
-        self.product_page_source_file = 'cache/product_pages/%s.html' %(product_handle)
+        self.product_page_source_file = 'cache/product_pages/%s.html' %(product_handle) 
 
-        self.__get_page_source()
-        self.__get_options_from_page_source()
+        set_no_options = kwargs.get('set_no_options', False)
+        if set_no_options == True:
+            self.__set_no_options()
+
+        refresh_cache = kwargs.get('refresh_cache', False)
+        if refresh_cache == True and self.options_available():
+            self.__refresh_cache()
+
+        if self.options_available():
+            self.__get_page_source()
+            self.__get_options_from_page_source()
+        else:
+            logging.debug("Product %s is indicated by its cache file not to have product options, skipping" %(self.product_handle))
+
+    def __set_no_options(self):
+        "Sets up the cache file to instruct BoldOptionScraper not to retrieve options for this file"
+        # Create path if it doesn't exist.
+        if not os.path.exists(os.path.dirname(self.product_page_source_file)):
+            try:
+                os.makedirs(os.path.dirname(self.product_page_source_file))
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
+
+        page_source_file = open(self.product_page_source_file, 'w+')
+        page_source_file.write("NOOPTIONS")
+
+    def options_available(self):
+        if os.path.isfile(self.product_page_source_file):
+            check_file = open(self.product_page_source_file, 'r')
+            if check_file.read() == "NOOPTIONS":
+                check_file.close()
+                return False
+            check_file.close()
+        return True
+
+    def __refresh_cache(self):
+        "Deletes the cache. Useful for updating products, or downloading the product page again after failed attempts"
+        if os.path.isfile(self.product_page_source_file):
+            os.remove(self.product_page_source_file)
+        else:
+            logging.warning("Attempted to delete cache file for product %s, but cache doesn't exist" %(self.handle))
 
 
     def __get_page_source(self):
         "Attempts to retrieve page_source from cache, otherwise page_source is downloaded and stored in cache"
+        # If cache exists, retrieve options from cache
         if os.path.isfile(self.product_page_source_file):
+            logging.debug("Retrieving options for Product %s from cache" %(self.product_handle))
             self.page_source = open(self.product_page_source_file, 'r')
+        # Otherwise, retrieve it from shopify
         else:
             # Create path if it doesn't exist.
             if not os.path.exists(os.path.dirname(self.product_page_source_file)):
@@ -49,8 +92,8 @@ class BoldOptionScraper:
                 except OSError as e:
                     if e.errno != errno.EEXIST:
                         raise
-
             # initiate the browser, grab the page, and store it
+            logging.debug("Retrieving options for Product %s from shopify" %(self.product_handle))
             browser = webdriver.PhantomJS('phantomjs')
             browser.get(self.product_url)
             self.page_source = browser.page_source
@@ -70,13 +113,17 @@ class BoldOptionScraper:
             self.options.append((option_title, attributes))
 
     def get_options(self):
-        return self.options
+        options = []
+        for option_attribute_pair in self.options:
+            option = option_attribute_pair[0]
+            attribute = option_attribute_pair[1]
+            options.append(Option(option, attribute))
+        return options
 
 class Option:
     attributes = []
 
     def __init__(self, title, attributes, **kwargs):
-        logging.debug('Option instantiated')
         self.title = title
         self.attributes = attributes
         self.handle = Product.get_handle(title)
@@ -649,6 +696,36 @@ class Product:
             option_ids = [row[0] for row in cur.fetchall()]
             options = [Option.get_option(option_id) for option_id in option_ids]
             return options
+
+    def scrape_bold_product_options(self):
+        "Scrapes bold product options from product page and inserts them into the DB"
+        logging.debug("Scraping product options for %s" %(self.handle))
+        attempts = 1
+
+        # First attempt to retrieve product options
+        scraper = BoldOptionScraper(self.handle, self.url)
+        options = scraper.get_options()
+
+        # If first attempt failed, try again to retrieve product options from web page
+        while not options and attempts <= config.max_product_option_retrieval_attempts \
+              and scraper.options_available():
+            logging.debug("Attempt %d to find options for product %s failed." %(attempts, self.handle))
+            print("Attempt %d to find options for product %s failed." %(attempts, self.handle))
+            scraper = BoldOptionScraper(self.handle, self.url, refresh_cache=True)
+            options = scraper.get_options()
+            attempts += 1
+
+        if options:
+            with DB() as con:
+                cur = con.cursor()
+                for option in options:
+                    option.save(cur)
+                    con.commit()
+                    option.associate_with_product(self.handle)
+        else:
+            logging.info("No options found for product %s" %(self.handle))
+            if scraper.options_available():
+                BoldOptionScraper(self.handle, self.url, set_no_options=True)
 
     def __repr__(self):
         return self.handle

@@ -17,3 +17,5 @@ domain_name = 'ez-tuxedo.com'
 # path to phantomjs
 phantomjs_path = 'phantomjs'
 
+# maximum amount of attempts to retrieve product options for a product
+max_product_option_retrieval_attempts = 3

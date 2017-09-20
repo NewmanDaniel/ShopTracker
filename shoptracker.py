@@ -255,7 +255,7 @@ class Option:
                     option_a = self.__get_attribute_insert_statement(option_id, attribute)
                     cur.execute(option_a)
             else:
-                logging.debug('Not inserting "%s", option with identical attributes exists in db' %(self.handle))
+                logging.debug('Option with title "%s", and identical attributes exists in db, skipping insert' %(self.handle))
         except mysql.Error as e:
             print("Problem while saving an option to database")
             #print("Error %d: %s" % (e.args[0], e.args[1]))
@@ -1059,6 +1059,13 @@ class Collection:
             else:
                 bad_log_str = 'Attempted to set collection %s to malformed g_product_category' % (self.handle)
                 logging.warn(bad_log_str)
+
+    def scrape_bold_product_options(self):
+        "Scrapes options for all products in collection and inserts them into the database"
+        logging.info('-Scraping bold product options for Collection "%s"'%(self.handle))
+        print('Scraping bold product options for Collection "%s"'%(self.handle))
+        for product in self.products:
+            product.scrape_bold_product_options()
 
     def process_conditions(self, *conditions):
         self.conditions = []

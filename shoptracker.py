@@ -489,7 +489,7 @@ class GoogleFeed:
     def __tmp_handle_none_defaults(self, mapping, product):
         "to be removed later, for handling none values"
         tmp_none_defaults = {
-            "availability" : "available",
+            "availability" : "in stock",
             "brand" : "eztuxedo",
             "MPN" : product.sku,
             "condition" : "new",

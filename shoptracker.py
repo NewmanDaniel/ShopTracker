@@ -609,6 +609,7 @@ class GoogleFeed:
             new_product.size = new_attribute
             new_product.sku = new_sku
             new_product.item_group_id = old_sku
+            new_product.mpn = old_sku
 
             self.__add_product(new_product)
 
@@ -692,8 +693,10 @@ class GoogleFeed:
         "Returns a properly formatted str representing the attribute of the respective mapping"
         if mapping == "description":
             return self.__format_tsv_description(product.desc)
-        if mapping == "price":
+        elif mapping == "price":
             return self.__format_tsv_price(product.price)
+        elif mapping == "MPN" and hasattr(product, 'mpn'):
+            return product.mpn
         elif attribute == "NONE":
             return self.__tmp_handle_none_defaults(mapping, product)
         else:

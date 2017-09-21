@@ -508,6 +508,7 @@ class GoogleFeed:
         self.sizes = []
         self.feed_str = ''
         self.added_product_handles = []
+        self.user_defaults = {}
 
     def handle_size(self, size_handle, size_modifiers=None):
         """
@@ -675,10 +676,13 @@ class GoogleFeed:
             logging.warn('Product %s failed to add due to failing condition %s' %(product, failing_condition))
             return False
 
+    def set_default_color(self, color):
+        "Used to set a default color for products that don't have one"
+        self.user_defaults['g_color'] = color
+
     def __set_defaults(self, **kwargs):
         pass
         "Used to set default values NONE mappings"
-
 
     def __format_tsv_description(self, description):
             description = BeautifulSoup(description, 'lxml')
@@ -724,11 +728,16 @@ class GoogleFeed:
                     tsv_body += "%s\n" % (self.__format_tsv_mapping(mapping, attribute, product))
         self.feed_str = tsv_header + tsv_body
 
-
+    def __process_user_defaults(self, product):
+        for attribute, value in self.user_defaults.items():
+            if hasattr(product, attribute) and getattr(product, attribute) == '':
+                setattr(product, attribute, value)
 
     def __add_product(self, product):
         if self.__verify_product(product):
             logging.debug('Adding product %s to the feed' %(product))
+            # Check if user_defaults exist for any attributes, and add them
+            self.__process_user_defaults(product)
             self.added_product_handles.append(product.handle)
             self.products.append(product)
 

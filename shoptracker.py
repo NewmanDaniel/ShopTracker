@@ -476,8 +476,15 @@ class GoogleFeed:
         "age_group" : "g_age_group",
         "color" : "g_color",
         "gender" : "g_gender",
-        "size" : "size" # Not required on every product
     }
+
+    # These map elements to attributes that aren't part of the original Product class
+    optional_mappings = {
+        "size" : "size",
+        "item_group_id" : "item_group_id",
+    }
+
+    mappings = dict(mappings, **optional_mappings)
 
     def __tmp_handle_none_defaults(self, mapping, product):
         "to be removed later, for handling none values"
@@ -544,7 +551,7 @@ class GoogleFeed:
         sizes = self.__get_sizes()
         size_option = None
         for product_option in product_options:
-            if product_option.handle in sizes:
+            if product_option.handle in sizes and self.__verify_product(product):
                 size_option = product_option
                 break
         return size_option
@@ -595,11 +602,19 @@ class GoogleFeed:
             # New handle needed because products with sizes are split into seperate products
             new_handle = handle + '-' + Product.get_handle(attribute)
             new_attribute = self.__process_product_size_attribute(new_product, product_size, attribute)
+            old_sku = product.sku
+            new_sku = product.sku + '-' + Product.get_handle(new_attribute)
 
             new_product.handle = new_handle
             new_product.size = new_attribute
+            new_product.sku = new_sku
+            new_product.item_group_id = old_sku
 
             self.__add_product(new_product)
+
+    def __set_optional_element_defaults(self, product):
+        for key, value in self.optional_mappings.items():
+            setattr(product,value,'')
 
     def build_feed(self):
         "Builds a google feed"
@@ -609,12 +624,12 @@ class GoogleFeed:
         # Add products to the feed
         for collection in self.collections:
             for product in collection.products:
+                self.__set_optional_element_defaults(product)
                 if product.handle not in self.added_product_handles:
                     product_size = self.__get_product_size_option(product)
                     if product_size:
                         self.__add_product_size_variants(product,product_size)
                     else:
-                        product.size = ''
                         self.__add_product(product)
 
                 else:

@@ -4,6 +4,7 @@
 Allows user to import products from shopify into a mysql database
 """
 import codecs
+import copy
 import logging, sys
 import io
 import os.path
@@ -128,6 +129,9 @@ class Option:
         self.attributes = attributes
         self.handle = Product.get_handle(title)
         self.id = kwargs.get('id', '')
+
+    def __repr__(self):
+        return self.handle
 
     def __get_ids_matching_handle(self):
         with DB() as con:
@@ -463,6 +467,7 @@ class GoogleFeed:
         "description" :"desc",
         "link" : "url",
         "image_link": "img_url",
+        "price" : "price",
         "availability" : "NONE",
         "google_product_category" : "g_product_category",
         "brand" : "NONE",
@@ -471,6 +476,7 @@ class GoogleFeed:
         "age_group" : "g_age_group",
         "color" : "g_color",
         "gender" : "g_gender",
+        "size" : "size" # Not required on every product
     }
 
     def __tmp_handle_none_defaults(self, mapping, product):
@@ -480,6 +486,7 @@ class GoogleFeed:
             "brand" : "eztuxedo",
             "MPN" : product.sku,
             "condition" : "new",
+            "size" : ""
         }
 
         for key, value in tmp_none_defaults.items():
@@ -491,8 +498,35 @@ class GoogleFeed:
         logging.debug('Google feed instantiated')
         self.collections = collections
         self.products = []
+        self.sizes = []
         self.feed_str = ''
         self.added_product_handles = []
+
+    def handle_size(self, size_handle, size_modifiers=None):
+        """
+        Instructs the Google Feed generator to process products with the specified size option.
+        The user may also specify title_filters and attribute_filters, which allow the user to
+        modify size option titles and attributes before they are inserted into the feed
+        """
+        #title_filters=[], attribute_filters=[]
+
+        # specification for size_modifiers
+        default_size_modifiers = {
+            # Regex for extracting price from an attribute. These will be added to the product's price
+            # The first paranthesized group will be captured as the price (group(1))
+            'price_attribute_extraction_regex' : None,
+
+            # Regexes for filtering text out of an attribute
+            'attribute_regexes' : [],
+
+            #Run strip() on attribute str
+            'strip_attribute' : True,
+        }
+
+        if size_modifiers == None:
+            size_modifiers = default_size_modifiers
+
+        self.sizes.append((size_handle, size_modifiers))
 
     def export_tsv(self, filename):
         "exports tsv to a file"
@@ -501,6 +535,71 @@ class GoogleFeed:
         with open(filename, 'w') as tsv_file:
             tsv_file.write(self.feed_str)
 
+    def __get_sizes(self):
+        return [size[0] for size in self.sizes]
+
+    def __get_product_size_option(self, product):
+        "returns a product size option if it exists, or None if it doesn't"
+        product_options = product.get_options()
+        sizes = self.__get_sizes()
+        size_option = None
+        for product_option in product_options:
+            if product_option.handle in sizes:
+                size_option = product_option
+                break
+        return size_option
+
+    def __process_product_size_attribute(self, product,  product_size_option, product_size_attribute):
+        "Returns a filtered attribute, and processes any needed changes for product"
+        # Get size_modifiers
+        size_modifers = None
+        for size_option_handle, size_modifier_dict in self.sizes:
+            if size_option_handle == product_size_option.handle:
+                size_modifiers = size_modifier_dict
+
+        # process size_modifiers
+        if size_modifiers:
+            new_attribute = product_size_attribute
+            if size_modifiers['price_attribute_extraction_regex']:
+                regex = size_modifiers['price_attribute_extraction_regex']
+                m_price = re.search(regex, product_size_attribute)
+                if m_price:
+                    price = float(m_price.group(1))
+                    old_price = product.price
+                    new_price = product.price + price
+                    product.price = new_price
+                    logging.debug("changing price on %s, old: '%s' new: '%s'" %(product, old_price, new_price))
+            if size_modifiers['attribute_regexes']:
+                for regex in size_modifiers['attribute_regexes']:
+                    match = re.search(regex, product_size_attribute)
+                    if match:
+                        remove_str = match.group(0)
+                        old_attribute = new_attribute
+                        new_attribute = old_attribute.replace(remove_str, "")
+                        logging.debug("Filtering on %s, old: '%s' new: '%s'" %(product, old_attribute, new_attribute))
+            if size_modifiers['strip_attribute']:
+                old_attribute = new_attribute
+                new_attribute = old_attribute.strip()
+                logging.debug("Stripping attribute on  %s, old: '%s' new: '%s'" %(product, old_attribute, new_attribute))
+            return new_attribute
+        else:
+            raise ValueError('Tried processing product size, but size_modifiers does not exist')
+
+
+    def __add_product_size_variants(self, product, product_size):
+        "Adds product variants for products possessing a handled size option"
+        self.added_product_handles.append(product.handle)
+        handle = product.handle
+        for attribute in product_size.attributes:
+            new_product = copy.copy(product)
+            # New handle needed because products with sizes are split into seperate products
+            new_handle = handle + '-' + Product.get_handle(attribute)
+            new_attribute = self.__process_product_size_attribute(new_product, product_size, attribute)
+
+            new_product.handle = new_handle
+            new_product.size = new_attribute
+
+            self.__add_product(new_product)
 
     def build_feed(self):
         "Builds a google feed"
@@ -511,7 +610,13 @@ class GoogleFeed:
         for collection in self.collections:
             for product in collection.products:
                 if product.handle not in self.added_product_handles:
-                    self.__add_product(product)
+                    product_size = self.__get_product_size_option(product)
+                    if product_size:
+                        self.__add_product_size_variants(product,product_size)
+                    else:
+                        product.size = ''
+                        self.__add_product(product)
+
                 else:
                     logging.warn('Skipped product %s: already in feed' %(product))
 
@@ -565,20 +670,26 @@ class GoogleFeed:
             description = '"%s"' % ( description)
             return description
 
+    def __format_tsv_price(self, price):
+        return '${:,.2f} USD'.format(price)
+
     def __format_tsv_mapping(self, mapping, attribute, product):
         "Returns a properly formatted str representing the attribute of the respective mapping"
         if mapping == "description":
             return self.__format_tsv_description(product.desc)
+        if mapping == "price":
+            return self.__format_tsv_price(product.price)
         elif attribute == "NONE":
             return self.__tmp_handle_none_defaults(mapping, product)
         else:
             return product.__getattribute__(attribute)
 
     def __build_tsv(self):
+        mappings = self.mappings
         # Build tsv_header
         tsv_header = ''
-        for i, mapping in enumerate(self.mappings):
-            if i < len(self.mappings) - 1:
+        for i, mapping in enumerate(mappings):
+            if i < len(mappings) - 1:
                 tsv_header += "%s\t" % (mapping)
             else:
                 tsv_header += "%s\n" % (mapping)
@@ -586,10 +697,10 @@ class GoogleFeed:
         # Build tsv_body
         tsv_body = ''
         for product in self.products:
-            for i, unpacked in enumerate(self.mappings.items()):
+            for i, unpacked in enumerate(mappings.items()):
                 mapping = unpacked[0]; attribute = unpacked[1]
                 attribute = attribute.replace("\t","") # get rid of tabs if they have it
-                if i < len(self.mappings) - 1:
+                if i < len(mappings) - 1:
                     tsv_body += "%s\t" % (self.__format_tsv_mapping(mapping, attribute, product))
                 else:
                     tsv_body += "%s\n" % (self.__format_tsv_mapping(mapping, attribute, product))

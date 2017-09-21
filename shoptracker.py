@@ -470,7 +470,7 @@ class GoogleFeed:
         "price" : "price",
         "availability" : "NONE",
         "google_product_category" : "g_product_category",
-        "brand" : "NONE",
+        "brand" : "vendor",
         "MPN" : "NONE",
         "condition" : "NONE",
         "age_group" : "g_age_group",

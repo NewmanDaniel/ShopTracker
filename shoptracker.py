@@ -691,7 +691,7 @@ class GoogleFeed:
             return description
 
     def __format_tsv_price(self, price):
-        return '${:,.2f} USD'.format(price)
+        return '{:,.2f} USD'.format(price)
 
     def __format_tsv_mapping(self, mapping, attribute, product):
         "Returns a properly formatted str representing the attribute of the respective mapping"

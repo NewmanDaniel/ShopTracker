@@ -508,6 +508,7 @@ class GoogleFeed:
         self.sizes = []
         self.feed_str = ''
         self.added_product_handles = []
+        self.added_product_ids = []
         self.user_defaults = {}
 
     def handle_size(self, size_handle, size_modifiers=None):
@@ -597,6 +598,7 @@ class GoogleFeed:
     def __add_product_size_variants(self, product, product_size):
         "Adds product variants for products possessing a handled size option"
         self.added_product_handles.append(product.handle)
+        self.added_product_ids.append(product.sku)
         handle = product.handle
         for attribute in product_size.attributes:
             new_product = copy.copy(product)
@@ -654,6 +656,7 @@ class GoogleFeed:
 
         conditions = {
             'product_not_duplicate' : (product.handle not in self.added_product_handles),
+            'product_id_not_duplicate' : (product.sku not in self.added_product_ids),
             'product_has_id' : ( (product.sku and product.sku != '')),
             'product_has_title' : (product.title and product.title != ''),
             'product_has_description' : (product.desc and product.desc != ''),
@@ -739,6 +742,7 @@ class GoogleFeed:
             # Check if user_defaults exist for any attributes, and add them
             self.__process_user_defaults(product)
             self.added_product_handles.append(product.handle)
+            self.added_product_ids.append(product.handle)
             self.products.append(product)
 
 class DB:

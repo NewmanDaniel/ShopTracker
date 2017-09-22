@@ -509,6 +509,7 @@ class GoogleFeed:
         self.feed_str = ''
         self.added_product_handles = []
         self.added_product_ids = []
+        self.excluded_product_handles = []
         self.user_defaults = {}
 
     def handle_size(self, size_handle, size_modifiers=None):
@@ -629,13 +630,18 @@ class GoogleFeed:
         for collection in self.collections:
             for product in collection.products:
                 self.__set_optional_element_defaults(product)
-                if product.handle not in self.added_product_handles:
-                    product_size = self.__get_product_size_option(product)
-                    if product_size:
-                        self.__add_product_size_variants(product,product_size)
-                    else:
-                        self.__add_product(product)
 
+                product_not_already_added = product.handle not in self.added_product_handles
+                product_not_excluded = product.handle not in self.excluded_product_handles
+                if product_not_already_added:
+                    if product_not_excluded:
+                        product_size = self.__get_product_size_option(product)
+                        if product_size:
+                            self.__add_product_size_variants(product,product_size)
+                        else:
+                            self.__add_product(product)
+                    else:
+                        logging.info('Skipped product %s: excluded' %(product))
                 else:
                     logging.warn('Skipped product %s: already in feed' %(product))
 
@@ -679,6 +685,10 @@ class GoogleFeed:
             logging.warn('Product %s failed to add due to failing condition %s' %(product, failing_condition))
             return False
 
+    def exclude_product(self, handle):
+        "Prevents product from being inserted into the feed"
+        self.excluded_product_handles.append(handle)
+
     def set_default_color(self, color):
         "Used to set a default color for products that don't have one"
         self.user_defaults['g_color'] = color
@@ -688,26 +698,56 @@ class GoogleFeed:
         "Used to set default values NONE mappings"
 
     def __format_tsv_description(self, description):
-            description = BeautifulSoup(description, 'lxml')
-            description = description.text
-            description = '"%s"' % ( description)
-            return description
+        "Responsible for cleaning and formatting descriptions before inserting them into the feed"
+        description = BeautifulSoup(description, 'lxml')
+
+        # Remove script, style, img elements from description if they exist
+        elements_to_remove = ["img", "script", "style"]
+        for element in description(elements_to_remove):
+            element.extract()
+
+        # Remove html elements from description
+        description = description.text
+
+        # Strip description
+        description = description.strip()
+
+        # Escape newlines, tabs, carriage returns, backslashes, and quotes
+        description = description.replace("\\","\\\\")
+        description = description.replace("\t","\\t")
+        description = description.replace("\r","\\r")
+        description = description.replace("\"", "\"\"") # Double Quotes to escape quotes in the description
+
+        return description
 
     def __format_tsv_price(self, price):
         return '{:,.2f} USD'.format(price)
 
+    def __clean_product_attribute(self, product, attribute):
+        "Cleans attribute before inserting product into feed"
+        if attribute == 'sku':
+            # Remove # from sku
+            product.sku = product.sku.replace("#", "")
+
+
     def __format_tsv_mapping(self, mapping, attribute, product):
         "Returns a properly formatted str representing the attribute of the respective mapping"
+        result_attribute = ""
         if mapping == "description":
-            return self.__format_tsv_description(product.desc)
+            result_attribute = self.__format_tsv_description(product.desc)
         elif mapping == "price":
-            return self.__format_tsv_price(product.price)
+            result_attribute = self.__format_tsv_price(product.price)
         elif mapping == "MPN" and hasattr(product, 'mpn'):
-            return product.mpn
+            result_attribute = product.mpn
         elif attribute == "NONE":
-            return self.__tmp_handle_none_defaults(mapping, product)
+            result_attribute = self.__tmp_handle_none_defaults(mapping, product)
         else:
-            return product.__getattribute__(attribute)
+            result_attribute = product.__getattribute__(attribute)
+
+        # Quote wrap the result_attribute
+        result_attribute = '"%s"' %(result_attribute)
+
+        return result_attribute
 
     def __build_tsv(self):
         mappings = self.mappings
@@ -737,12 +777,21 @@ class GoogleFeed:
                 setattr(product, attribute, value)
 
     def __add_product(self, product):
+        "Adds the product to the Google Feed"
         if self.__verify_product(product):
             logging.debug('Adding product %s to the feed' %(product))
-            # Check if user_defaults exist for any attributes, and add them
+
+            # Clean product attributes before inserting into feed
+            self.__clean_product_attribute(product, 'sku')
+
+            # Process defaults for attributes configured by the user
             self.__process_user_defaults(product)
+
+            # Add handles and ids to 'already added' lists so we don't end up adding them again
             self.added_product_handles.append(product.handle)
-            self.added_product_ids.append(product.handle)
+            self.added_product_ids.append(product.sku)
+
+            # Finally, add the product to the list.
             self.products.append(product)
 
 class DB:

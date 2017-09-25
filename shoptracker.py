@@ -511,6 +511,7 @@ class GoogleFeed:
         self.excluded_product_handles = []
         self.excluded_brands = []
         self.user_defaults = {}
+        self.include_option_names_in_title_flag = False
 
     def handle_size(self, size_handle, size_modifiers=None):
         """
@@ -595,6 +596,10 @@ class GoogleFeed:
         else:
             raise ValueError('Tried processing product size, but size_modifiers does not exist')
 
+    def __add_attribute_to_product_title(self, product_title, new_attribute):
+        "Adds the attribute title to the product title"
+        new_title = "%s (%s)" %(product_title, new_attribute)
+        return new_title
 
     def __add_product_size_variants(self, product, product_size):
         "Adds product variants for products possessing a handled size option"
@@ -614,6 +619,9 @@ class GoogleFeed:
             new_product.sku = new_sku
             new_product.item_group_id = old_sku
             new_product.mpn = old_sku
+
+            if self.include_option_names_in_title_flag:
+                new_product.title = self.__add_attribute_to_product_title(new_product.title, new_attribute)
 
             self.__add_product(new_product)
 
@@ -715,6 +723,11 @@ class GoogleFeed:
     def set_default_color(self, color):
         "Used to set a default color for products that don't have one"
         self.user_defaults['g_color'] = color
+
+    def include_option_names_in_title(self):
+        "For products with options, includes the option name in the title"
+        self.include_option_names_in_title_flag = True
+
 
     def __set_defaults(self, **kwargs):
         pass

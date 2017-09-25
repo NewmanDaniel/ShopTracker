@@ -500,7 +500,6 @@ class GoogleFeed:
             if key == mapping:
                 return value
 
-
     def __init__(self, collections):
         logging.debug('Google feed instantiated')
         self.collections = collections
@@ -510,6 +509,7 @@ class GoogleFeed:
         self.added_product_handles = []
         self.added_product_ids = []
         self.excluded_product_handles = []
+        self.excluded_brands = []
         self.user_defaults = {}
 
     def handle_size(self, size_handle, size_modifiers=None):
@@ -632,9 +632,10 @@ class GoogleFeed:
                 self.__set_optional_element_defaults(product)
 
                 product_not_already_added = product.handle not in self.added_product_handles
-                product_not_excluded = product.handle not in self.excluded_product_handles
+                product_handle_not_excluded = product.handle not in self.excluded_product_handles
+                product_brand_not_excluded = product.vendor not in self.excluded_brands
                 if product_not_already_added:
-                    if product_not_excluded:
+                    if product_handle_not_excluded and product_brand_not_excluded:
                         product_size = self.__get_product_size_option(product)
                         if product_size:
                             self.__add_product_size_variants(product,product_size)
@@ -688,6 +689,10 @@ class GoogleFeed:
     def exclude_product(self, handle):
         "Prevents product from being inserted into the feed"
         self.excluded_product_handles.append(handle)
+
+    def exclude_brand(self, brand_title):
+        "Prevents product with brand name (vendor name) from being inserted into the feed "
+        self.excluded_brands.append(brand_title)
 
     def set_default_color(self, color):
         "Used to set a default color for products that don't have one"

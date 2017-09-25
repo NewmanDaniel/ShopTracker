@@ -32,7 +32,7 @@ class BoldOptionScraper:
 
         self.options = []
         self.page_source = ''
-        self.product_page_source_file = 'cache/product_pages/%s.html' %(product_handle) 
+        self.product_page_source_file = 'cache/product_pages/%s.html' %(product_handle)
 
         set_no_options = kwargs.get('set_no_options', False)
         if set_no_options == True:
@@ -659,7 +659,10 @@ class GoogleFeed:
     def __verify_product(self, product):
         "Verifies a product can be added to a Google Feed"
         can_be_added = True
+        warning_issued = False
+
         failing_condition = None
+        warnings = []
 
         conditions = {
             'product_not_duplicate' : (product.handle not in self.added_product_handles),
@@ -672,6 +675,11 @@ class GoogleFeed:
             #'product_has_availibility' : (product.img_url and product.img_url != ''),
             'product_has_price' : (product.price and product.price != '') ,
             #'product_has_brand' : (product.brand and product.brand != '') ,
+            'product_title_less_or_equal_150' : (len(product.title) <= 150) ,
+        }
+
+        warning_conditions = {
+            'product_title_less_or_equal_70' : (len(product.title) <= 70) ,
         }
 
         for condition_name, condition in conditions.items():
@@ -680,7 +688,17 @@ class GoogleFeed:
                 can_be_added = False
                 break
 
+        for condition_name, condition in warning_conditions.items():
+            if not condition:
+                warning_issued = True
+                warnings.append(condition_name)
+
         if can_be_added:
+            if warning_issued:
+                for warning in warnings:
+                    print("%s %s" %(warning, product))
+                    logging.warn('Warning condition %s issued while processing product %s' %(warning, product) )
+
             return True
         else:
             logging.warn('Product %s failed to add due to failing condition %s' %(product, failing_condition))

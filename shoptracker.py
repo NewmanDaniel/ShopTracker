@@ -511,15 +511,16 @@ class GoogleFeed:
         self.excluded_product_handles = []
         self.excluded_brands = []
         self.user_defaults = {}
+        self.attribute_product_title_filters = {}
         self.include_option_names_in_title_flag = False
 
     def handle_size(self, size_handle, size_modifiers=None):
         """
         Instructs the Google Feed generator to process products with the specified size option.
-        The user may also specify title_filters and attribute_filters, which allow the user to
+        The user may also specify title_filters and attribute_product_title_filters, which allow the user to
         modify size option titles and attributes before they are inserted into the feed
         """
-        #title_filters=[], attribute_filters=[]
+        #title_filters=[], attribute_product_title_filters=[]
 
         # specification for size_modifiers
         default_size_modifiers = {
@@ -538,6 +539,10 @@ class GoogleFeed:
             size_modifiers = default_size_modifiers
 
         self.sizes.append((size_handle, size_modifiers))
+
+    def filter_attribute_title_in_product_title(self, option_handle, filter_method):
+        "Allows a user to define a method to filter attribute names for an option"
+        self.attribute_product_title_filters[option_handle] = filter_method
 
     def export_tsv(self, filename):
         "exports tsv to a file"
@@ -596,9 +601,18 @@ class GoogleFeed:
         else:
             raise ValueError('Tried processing product size, but size_modifiers does not exist')
 
-    def __add_attribute_to_product_title(self, product_title, new_attribute):
+    def __add_attribute_to_product_title(self, product, new_attribute):
         "Adds the attribute title to the product title"
-        new_title = "%s (%s)" %(product_title, new_attribute)
+        # Check if attribute in product title filters exist, and process them
+        option_handles = [option.handle for option in product.get_options()]
+        for option_handle, filter_method in self.attribute_product_title_filters.items():
+            if option_handle in option_handles:
+                old_attribute = new_attribute
+                new_attribute = filter_method(new_attribute)
+                logging.debug("Attribute title filter found for %s: '%s' changed to '%s'" %(option_handle, old_attribute, new_attribute))
+
+        # Create new title
+        new_title = "%s (%s)" %(product.title, new_attribute)
         return new_title
 
     def __add_product_size_variants(self, product, product_size):
@@ -621,7 +635,7 @@ class GoogleFeed:
             new_product.mpn = old_sku
 
             if self.include_option_names_in_title_flag:
-                new_product.title = self.__add_attribute_to_product_title(new_product.title, new_attribute)
+                new_product.title = self.__add_attribute_to_product_title(new_product, new_attribute)
 
             self.__add_product(new_product)
 
@@ -704,7 +718,6 @@ class GoogleFeed:
         if can_be_added:
             if warning_issued:
                 for warning in warnings:
-                    print("%s %s" %(warning, product))
                     logging.warn('Warning condition %s issued while processing product %s' %(warning, product) )
 
             return True

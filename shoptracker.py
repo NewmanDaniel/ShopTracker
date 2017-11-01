@@ -1563,7 +1563,7 @@ def import_collections_from_shopify(*html_files):
     collection_list = []
     # Don't add if collection contains a blacklisted word in the title
     blacklist = ['hidden', 'Hidden', 'HIDDEN', 'internal', 'Internal', 'INTERNAL',
-                 'Newest Products', 'Best Selling Products', 'Home page']
+                 'Newest Products', 'Best Selling Products', 'Featured Products', 'Home page', 'Unavailable']
     for html_file in html_files:
         soup = BeautifulSoup(html_file, 'lxml')
         trs = soup.find_all('tr')

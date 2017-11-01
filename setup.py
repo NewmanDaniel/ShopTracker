@@ -1,4 +1,9 @@
 """
+Transmission, redistribution or modification of this software is strictly forbidden.
+Copyright 2017, Daniel Newman, All rights reserved.
+"""
+
+"""
 Sets up the database for use with ShopTracker
 """
 import MySQLdb as mysql

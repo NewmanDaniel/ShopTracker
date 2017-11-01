@@ -1,3 +1,8 @@
+"""
+Transmission, redistribution or modification of this software is strictly forbidden.
+Copyright 2017, Daniel Newman, All rights reserved.
+"""
+
 #!/usr/bin/python3
 "shoptracker.py"
 """
@@ -1517,7 +1522,7 @@ def parse_condition_str(condition_str):
     # get value
     m = re.search('(%s.*%s)(.*)' %(original_variable, original_relation), condition_str)
     if m:
-        value = clean_sql(m[2])
+        value = clean_sql(m.group(2))
 
     # check if everything is set
     if variable and relation and value:
@@ -1738,6 +1743,6 @@ def main():
         print("bla")
     else:
         pass
-        #print_error() 
+        #print_error()
 if __name__ == '__main__':
-    main()
+    main() 

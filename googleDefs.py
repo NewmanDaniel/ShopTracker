@@ -1,4 +1,22 @@
 """
+Color values retrieved from:
+  https://en.wikipedia.org/wiki/List_of_colors:_A%E2%80%93F
+  https://en.wikipedia.org/wiki/List_of_colors:_G%E2%80%93M
+  https://en.wikipedia.org/wiki/List_of_colors:_N%E2%80%93Z
+
+Google definitions retrieved from:
+  https://support.google.com/merchants/answer/7052112?hl=en
+
+Google product taxonomy retrieved from:
+  https://www.google.com/basepages/producttype/taxonomy.en-US.txt
+"""
+
+"""
+Transmission, redistribution or modification of this software is strictly forbidden.
+Copyright 2017, Daniel Newman, All rights reserved.
+"""
+
+"""
 googleDefs.py
 Contains possible values for Google Product Data Specification attributes
 """
